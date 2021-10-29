@@ -3,12 +3,12 @@
 %}
 
 clear all;
-% close all;
+close all;
 clc;
 
 %% Draw settings
-drawThings = true;
-drawStart = 0;
+drawThings = false;
+drawStart = 145530;
 drawSpeed = 10;
 plotModalAnalysis = false;
 
@@ -17,7 +17,7 @@ k = 1/fs;               % Time step (in s)
 if plotModalAnalysis
     lengthSound = 1000;   % Length of the simulation (in samples)
 else
-    lengthSound = fs * 1;
+    lengthSound = fs * 5;
 end
 
 %{
@@ -28,7 +28,7 @@ end
     >2: (Expected behaviour) Selects where to add points (to left system).
 %}
 
-numFromBound = -1;
+numFromBound = 1;
 
 if numFromBound == 0
     error("numFromBound = 0 is undefined")
@@ -36,26 +36,26 @@ end
 
 dispCorr = true;
 %% Initialise wave speeds for the entire simulation
-startParams = [1; 7850; 5e-4; 300; 2e11; 1; 0.005];
+startParams = [0.3; sqrt(5000); sqrt(5e-3); 0; sqrt(2e11); 1; 0.01];
+endParams = [0.3; sqrt(5000); sqrt(5e-3); 0; sqrt(2e10); 2; 0.02];
 % endParams = startParams;
-endParams = [1; 7850; 5e-4; 300; 2e12; 1; 0.005];
-Lvec = linspace(startParams(1), endParams(1), lengthSound);
-rhoVec = linspace(startParams(2), endParams(2), lengthSound);
-rVec = linspace(startParams(3), endParams(3), lengthSound);
-Tvec = linspace(startParams(4), endParams(4), lengthSound);
-Evec = linspace(startParams(5), endParams(5), lengthSound);
-sig0Vec = linspace(startParams(6), endParams(6), lengthSound);
-sig1Vec = linspace(startParams(7), endParams(7), lengthSound);
+% endParams = [0.3; 7850; 5e-3; 0; 2e12; 1; 0.005];
+changeRatio = 0.5;
+Lvec = [startParams(1) * ones(1, floor(0.5 * (1-changeRatio) * lengthSound)), linspace(startParams(1), endParams(1), floor(changeRatio * lengthSound))];
+rhoVec = [startParams(2) * ones(1, floor(0.5 * (1-changeRatio) * lengthSound)), linspace(startParams(2), endParams(2), floor(changeRatio * lengthSound))];
+rVec = [startParams(3) * ones(1, floor(0.5 * (1-changeRatio) * lengthSound)), linspace(startParams(3), endParams(3), floor(changeRatio * lengthSound))];
+Tvec = [startParams(4) * ones(1, floor(0.5 * (1-changeRatio) * lengthSound)), linspace(startParams(4), endParams(4), floor(changeRatio * lengthSound))];
+Evec = [startParams(5) * ones(1, floor(0.5 * (1-changeRatio) * lengthSound)), linspace(startParams(5), endParams(5), floor(changeRatio * lengthSound))];
+sig0Vec = [startParams(6) * ones(1, floor(0.5 * (1-changeRatio) * lengthSound)), linspace(startParams(6), endParams(6), floor(changeRatio * lengthSound))];
+sig1Vec = [startParams(7) * ones(1, floor(0.5 * (1-changeRatio) * lengthSound)), linspace(startParams(7), endParams(7), floor(changeRatio * lengthSound))];
+Lvec = [Lvec, ones(1, lengthSound - length(Lvec)) * endParams(1)];
+rhoVec = ([rhoVec, ones(1, lengthSound - length(rhoVec)) * endParams(2)]).^2;
+rVec = ([rVec, ones(1, lengthSound - length(rVec)) * endParams(3)]).^2;
+Tvec = sqrt([Tvec, ones(1, lengthSound - length(Tvec)) * endParams(4)]).^2;
+Evec = ([Evec, ones(1, lengthSound - length(Evec)) * endParams(5)]).^2;
+sig0Vec = [sig0Vec, ones(1, lengthSound - length(sig0Vec)) * endParams(6)];
+sig1Vec = [sig1Vec, ones(1, lengthSound - length(sig1Vec)) * endParams(7)];
 
-% Evec = linspace(sqrt(2e11), sqrt(2e14), lengthSound*1/4).^2;
-% Evec = [ones(1, floor(lengthSound * 1/8)) *  Evec(1), Evec];
-% Evec = [Evec, ones(1, floor(lengthSound * 1/8)) * Evec(end)];
-% Evec = [Evec, fliplr(Evec)];
-% Evec = [Evec, ones(1, lengthSound - length(Evec)) * Evec(end)];
-
-% Evec = linspace(sqrt(0), sqrt(0), lengthSound).^2;
-
-% Evec = [Evec, ones(1, lengthSound - length(Evec)) * Evec(end)];
 A = pi * rVec(1)^2;
 I = pi / 4 * rVec(1)^4;
 cSq = Tvec(1) / (rhoVec(1) * A);
@@ -96,7 +96,7 @@ eu = ones(M, 1);
 ew = ones(Mw, 1);
 DxxFull(1:M, 1:M) = spdiags([eu -2*eu eu], -1:1, M, M);
 DxxFull(M+1:end, M+1:end) = spdiags([ew -2*ew ew], -1:1, Mw, Mw);
-DxxFull = DxxFull / h^2;
+DxxFull = DxxFull;
 
 DxxxxFull = DxxFull * DxxFull;
 
@@ -108,7 +108,7 @@ out = zeros(floor(lengthSound), 1);
 for n = 1:lengthSound  
 
     if mod(n, fs/2) == 1
-        q(1) = q(1) + 1/h;
+        q(1:5) = q(1:5) + 1/h * hann(5);
     end
     
     % Retrieve new params
@@ -151,12 +151,18 @@ for n = 1:lengthSound
             qPrevRight = qPrev(M+1:end);
             
             % Add grid points to u and w in an alternating fashion 
-            if numFromBound == -1
-                qNext = [qNextLeft; cubicIp * [qNextLeft(M-1:M); qNextRight(1:2)]; qNextRight];
-                q = [qLeft; cubicIp * [qLeft(M-1:M); qRight(1:2)]; qRight];
-                qPrev = [qPrevLeft; cubicIp * [qPrevLeft(M-1:M); qPrevRight(1:2)]; qPrevRight];
 
-            % Otherwise, add grid points to u using interpolation
+            if numFromBound == -1 
+                if mod(N, 2) == 0
+                    qNext = [qNextLeft; fliplr(cubicIp) * [qNextLeft(M-1:M); qNextRight(1:2)]; qNextRight];
+                    q = [qLeft; fliplr(cubicIp) * [qLeft(M-1:M); qRight(1:2)]; qRight];
+                    qPrev = [qPrevLeft; fliplr(cubicIp) * [qPrevLeft(M-1:M); qPrevRight(1:2)]; qPrevRight];
+                else
+                    qNext = [qNextLeft; cubicIp * [qNextLeft(M-1:M); qNextRight(1:2)]; qNextRight];
+                    q = [qLeft; cubicIp * [qLeft(M-1:M); qRight(1:2)]; qRight];
+                    qPrev = [qPrevLeft; cubicIp * [qPrevLeft(M-1:M); qPrevRight(1:2)]; qPrevRight];
+
+                end
             elseif numFromBound == 1
                 qNext = [qNextLeft; cubicIp(1:3) * [qNextLeft(M-1:M); qNextRight(1)]; qNextRight];
                 q = [qLeft; cubicIp(1:3) * [qLeft(M-1:M); qRight(1)]; qRight];
@@ -165,8 +171,7 @@ for n = 1:lengthSound
             else
                 qNext = [qNextLeft; cubicIp * [qNextLeft(M-1:M); qNextRight(1:2)]; qNextRight];
                 q = [qLeft; cubicIp * [qLeft(M-1:M); qRight(1:2)]; qRight];
-                qPrev = [qPrevLeft; cubicIp * [qPrevLeft(M-1:M); qPrevRight(1:2)]; qPrevRight];
-
+                qPrev = [qPrevLeft; fliplr(cubicIp) * [qPrevLeft(M-1:M); qPrevRight(1:2)]; qPrevRight];
             end
             disp("Added Point")
 
@@ -213,31 +218,30 @@ for n = 1:lengthSound
         ew = ones(Mw, 1);
         DxxFull(1:M, 1:M) = spdiags([eu -2*eu eu], -1:1, M, M);
         DxxFull(M+1:end, M+1:end) = spdiags([ew -2*ew ew], -1:1, Mw, Mw);
-        DxxFull = DxxFull / h^2;
         
         DxxxxFull = DxxFull * DxxFull;
         
     end
     
     NPrev = N;
-    alf = 0;
+%     alf = 0;
     %% Calculate (quadratic) interpolator and virtual grid points
     ip = [-(alf - 1) / (alf + 1), 1, (alf - 1) / (alf + 1)];
     DxxxxAlfMatrix = [-4, 6, ip(3) - 4, 1, ip(1), 0;
                     1, -4, (ip(3) - 2)^2 + 2, ip(3) - 4, 4 * (alf^2 + alf - 1) / (alf + 1)^2, ip(1)];
-    DxxxxAlfMatrix = [DxxxxAlfMatrix; flipud(fliplr(DxxxxAlfMatrix))];
-    Dxx = DxxFull;
-    Dxxxx = DxxxxFull;
+    DxxxxAlfMatrix = [DxxxxAlfMatrix; rot90(DxxxxAlfMatrix, 2)];
+    Dxx = DxxFull / h^2;
+    Dxxxx = DxxxxFull / h^4;
     if numFromBound == 1
         Dxx(M, M:(M+1)) = Dxx(M, M:(M+1)) + fliplr(ip(2:end)) / h^2;
         Dxx(M+1, (M-1):(M+1)) = Dxx(M+1, (M-1):(M+1)) + ip / h^2;
+%         Dxxxx(M-1:M+2, M-2:M+3) = DxxxxAlfMatrix / h^4;    
         Dxxxx = Dxx * Dxx;
-        
     else
         Dxx(M, M:(M+2)) = Dxx(M, M:(M+2)) + fliplr(ip) / h^2;
         Dxx(M+1, (M-1):(M+1)) = Dxx(M+1, (M-1):(M+1)) + ip / h^2;
-%         Dxxxx(M-1:M+2, M-2:M+3) = DxxxxAlfMatrix / h^4;    
-        Dxxxx = Dxx * Dxx;
+        Dxxxx(M-1:M+2, M-2:M+3) = DxxxxAlfMatrix / h^4;    
+%         Dxxxx = Dxx * Dxx;
     end
 
     Id  = speye(N);         % identity matrix
@@ -298,7 +302,7 @@ for n = 1:lengthSound
         plot([hLocsLeft, hLocsRight], [0; q; 0], 'Linewidth', 2,  'Marker', 'o', 'MarkerSize', 10, 'Color', 'g');
         % Settings
         xlim([0, Lvec(n)])
-%         ylim([-1, 1])
+        ylim([-1000, 1000])
         grid on;
         xlabel("$x$ (m)", 'interpreter', 'latex')
         ylabel("displacement (m)")
