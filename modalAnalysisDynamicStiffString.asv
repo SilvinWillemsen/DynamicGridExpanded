@@ -39,7 +39,7 @@ I = pi / 4 * r^4;
 % Evec = [Evec, ones(1, floor(lengthSound * 1/8)) * Evec(end)];
 % Evec = [Evec, fliplr(Evec)];
 % Evec = [Evec, ones(1, lengthSound - length(Evec)) * Evec(end)];
-Evec = linspace(sqrt(2e11), sqrt(2e11), lengthSound).^2
+Evec = linspace(sqrt(2e11), sqrt(2e14), lengthSound).^2
 E = Evec(1);
 kappaSq = E * I / (rho * A);
 kappaSqVec = Evec * I / (rho * A);
@@ -154,17 +154,11 @@ for n = 1:lengthSound
         Dxx(M+1, (M-1):(M+1)) = Dxx(M+1, (M-1):(M+1)) + ip;
     else
         Dxx(M, M:(M+2)) = Dxx(M, M:(M+2)) + fliplr(ip);
-%         Dxx(M-1, M+1) = Dxx(M-1, M+1) + ip(1);
-%         Dxx(M-1, M-1) = Dxx(M-1, M-1) + ip(3);
-
+        Dxx(M-1, M+1) = Dxx(M-1, M+1) + ip(1);
         Dxx(M+1, (M-1):(M+1)) = Dxx(M+1, (M-1):(M+1)) + ip;
-%         Dxx(M+2, M) = Dxx(M+2, M) + ip(1);
-%         Dxx(M+2, M+2) = Dxx(M+2, M+2) + ip(3);
+        Dxx(M-1, M+1) = Dxx(M-1, M+1) + ip(1);
 
     end
-%     imagesc(Dxx);
-%     sum(Dxx, 2)
-%     drawnow;
     Dxx = Dxx / h^2;
     Dxxxx = Dxx * Dxx;
     Id  = speye(N);         % identity matrix

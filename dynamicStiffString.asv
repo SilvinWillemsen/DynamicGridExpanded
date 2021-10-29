@@ -7,7 +7,7 @@ clear all;
 clc;
 
 %% Draw settings
-drawThings = true;
+drawThings = false;
 drawStart = 0;
 drawSpeed = 10;
 plotModalAnalysis = false;
@@ -17,7 +17,7 @@ k = 1/fs;               % Time step (in s)
 if plotModalAnalysis
     lengthSound = 1000;   % Length of the simulation (in samples)
 else
-    lengthSound = fs * 1;
+    lengthSound = fs * 5;
 end
 
 %{
@@ -36,9 +36,9 @@ end
 
 dispCorr = true;
 %% Initialise wave speeds for the entire simulation
-startParams = [1; 7850; 5e-4; 300; 2e11; 1; 0.005];
-% endParams = startParams;
-endParams = [1; 7850; 5e-4; 300; 2e12; 1; 0.005];
+startParams = [1; 7850; 5e-4; 0; 2e11; 1; 0.005];
+endParams = startParams;
+% endParams = [1; 7850; 5e-4; 1000; 2e11; 1; 0.005];
 Lvec = linspace(startParams(1), endParams(1), lengthSound);
 rhoVec = linspace(startParams(2), endParams(2), lengthSound);
 rVec = linspace(startParams(3), endParams(3), lengthSound);
@@ -168,8 +168,7 @@ for n = 1:lengthSound
                 qPrev = [qPrevLeft; cubicIp * [qPrevLeft(M-1:M); qPrevRight(1:2)]; qPrevRight];
 
             end
-            disp("Added Point")
-
+        
         else
         %% Remove point if N^n < N^{n-1}
             % Remove grid points from u and w in an alternating fashion 
@@ -194,7 +193,7 @@ for n = 1:lengthSound
                 qPrev(M) = [];
 
             end
-            disp("Removed Point")
+
             
         end
         
@@ -220,7 +219,7 @@ for n = 1:lengthSound
     end
     
     NPrev = N;
-    alf = 0;
+
     %% Calculate (quadratic) interpolator and virtual grid points
     ip = [-(alf - 1) / (alf + 1), 1, (alf - 1) / (alf + 1)];
     DxxxxAlfMatrix = [-4, 6, ip(3) - 4, 1, ip(1), 0;
@@ -231,13 +230,12 @@ for n = 1:lengthSound
     if numFromBound == 1
         Dxx(M, M:(M+1)) = Dxx(M, M:(M+1)) + fliplr(ip(2:end)) / h^2;
         Dxx(M+1, (M-1):(M+1)) = Dxx(M+1, (M-1):(M+1)) + ip / h^2;
-        Dxxxx = Dxx * Dxx;
+        
         
     else
         Dxx(M, M:(M+2)) = Dxx(M, M:(M+2)) + fliplr(ip) / h^2;
         Dxx(M+1, (M-1):(M+1)) = Dxx(M+1, (M-1):(M+1)) + ip / h^2;
-%         Dxxxx(M-1:M+2, M-2:M+3) = DxxxxAlfMatrix / h^4;    
-        Dxxxx = Dxx * Dxx;
+        Dxxxx(M-1:M+2, M-2:M+3) = DxxxxAlfMatrix / h^4;        
     end
 
     Id  = speye(N);         % identity matrix
