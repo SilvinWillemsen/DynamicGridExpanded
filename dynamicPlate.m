@@ -18,21 +18,21 @@ k = 1 / fs;         % Time step [s]
 lengthSound = fs * 5;   % Length of the simulation (1 second) [samples]             
 
 rho = 7850;
-H = 0.05;
-E = 2e11;
+H = 0.005;
+Evec = linspace(sqrt(2e13), sqrt(2e11), lengthSound).^2;
 nu = 0.3;
-Dvar = E * H^3 / (12 * (1 - nu^2));
-kappaSq = Dvar / (rho * H);
+Dvar = Evec * H^3 / (12 * (1 - nu^2));
+kappaSqVec = Dvar / (rho * H);
 
 sig0 = 1;
 sig1 = 0.05;
 
-Lx = linspace(1, 5, lengthSound);
+Lx = linspace(1, 1, lengthSound);
 
 % Lx = 0.5;
-Ly = linspace(0.5, 2, lengthSound);
+Ly = linspace(0.5, 0.5, lengthSound);
 
-h = 2 * sqrt(k * (sig1 + sqrt(sig1^2 + kappaSq))); 
+h = 2 * sqrt(k * (sig1 + sqrt(sig1^2 + kappaSqVec(1)))); 
 
 Nx = floor(Lx(1)/h);
 NxPrev = Nx;
@@ -56,8 +56,6 @@ else
     My = Ny-numFromBoundY;
     Mwy = numFromBoundY;
 end
-
-h = min(Lx(1)/Nx, Ly(1)/Ny);  % Recalculation of grid spacing based on integer N
 
 %% Initialise state vectors (one more grid point than the number of intervals)
 
@@ -89,8 +87,10 @@ for n = 1:lengthSound
         q((xInLoc-1) * Ny + yInLoc) = 1;
     end
     
+    h = 2 * sqrt(k * (sig1 + sqrt(sig1^2 + kappaSqVec(n)))); 
     NxFrac = Lx(n)/h;
     Nx = floor(NxFrac);
+
     alfX = NxFrac - Nx;
 
     if Nx ~= NxPrev
@@ -152,9 +152,9 @@ for n = 1:lengthSound
     end
     NxPrev = Nx;
     
-    
     NyFrac = Ly(n)/h;
     Ny = floor(NyFrac);
+
     alfY = NyFrac - Ny;
 
     if Ny ~= NyPrev
@@ -260,14 +260,14 @@ for n = 1:lengthSound
     
     D = kron(speye(Nx), Dyy) + kron(Dxx, speye(Ny));
     DD = D * D;
-    B = 2 * speye(Ny*Nx) - kappaSq * k^2 * DD + 2 * sig1 * k * D;
+    B = 2 * speye(Ny*Nx) - kappaSqVec(n) * k^2 * DD + 2 * sig1 * k * D;
     Amat = speye(Ny*Nx) * (1 + sig0 * k);
     C = (-1 + sig0 * k) * speye(Ny*Nx) - 2 * sig1 * k * D;
     
     %% Update equation
     qNext = Amat \ (B * q + C * qPrev);
     
-    out(n) = q((xInLoc-1) * Ny + yInLoc);
+    out(n) = q((xInLoc-1 + 3) * Ny + (yInLoc + 3));
 
     
     if drawThings && mod(n, drawSpeed) == 0 && n > drawStart

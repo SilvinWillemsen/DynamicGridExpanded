@@ -28,13 +28,18 @@ end
 dispCorr = true;
 
 %% Initialise parameters speeds for the entire simulation
-Lvec = linspace(1, 2, lengthSound);   
+Lvec = linspace(1, 2, lengthSound);                  % System length (does not really matter)
 rho = 7850;
 r = 5e-4;
 A = pi * r^2; 
 I = pi / 4 * r^4;
 
-Evec = linspace(sqrt(2e11), sqrt(2e11), lengthSound).^2;
+% Evec = linspace(sqrt(2e13), sqrt(2e11), lengthSound*1/4).^2;
+% Evec = [ones(1, floor(lengthSound * 1/8)) *  Evec(1), Evec];
+% Evec = [Evec, ones(1, floor(lengthSound * 1/8)) * Evec(end)];
+% Evec = [Evec, fliplr(Evec)];
+% Evec = [Evec, ones(1, lengthSound - length(Evec)) * Evec(end)];
+Evec = linspace(sqrt(2e11), sqrt(2e11), lengthSound).^2
 E = Evec(1);
 kappaSq = E * I / (rho * A);
 kappaSqVec = Evec * I / (rho * A);
@@ -149,9 +154,17 @@ for n = 1:lengthSound
         Dxx(M+1, (M-1):(M+1)) = Dxx(M+1, (M-1):(M+1)) + ip;
     else
         Dxx(M, M:(M+2)) = Dxx(M, M:(M+2)) + fliplr(ip);
+%         Dxx(M-1, M+1) = Dxx(M-1, M+1) + ip(1);
+%         Dxx(M-1, M-1) = Dxx(M-1, M-1) + ip(3);
+
         Dxx(M+1, (M-1):(M+1)) = Dxx(M+1, (M-1):(M+1)) + ip;
+%         Dxx(M+2, M) = Dxx(M+2, M) + ip(1);
+%         Dxx(M+2, M+2) = Dxx(M+2, M+2) + ip(3);
+
     end
-    
+%     imagesc(Dxx);
+%     sum(Dxx, 2)
+%     drawnow;
     Dxx = Dxx / h^2;
     Dxxxx = Dxx * Dxx;
     Id  = speye(N);         % identity matrix
@@ -170,12 +183,16 @@ for n = 1:lengthSound
 
     modesSave(n, 1:(M+Mw)) = f(1:(M+Mw));
     sigmaSave(n, 1:(M+Mw)) = sigma(1:(M+Mw));
-    %     subplot(211)
-%     hold off;
-%     plot(f(1:(M+Mw)))
-%     hold on;
+    
+    Bcoeff = kappaSq * pi^2 / c^2;
+%     subplot(211)
+    hold off;
+    plot(f(1:(M+Mw)))
+    hold on;
 %     beta = (1:length(f))*pi; % bar 
+    kappaSq = kappaSq / L^2;
     p = 1:(M+Mw);
+    Bcoeff = kappaSq * pi^2 / (c^2 * L^2);
     if kappaSq ~= 0
         % gives machine imprecision for lowewr values of kappaSq
         beta = sqrt(((sqrt(4 * pi^4 * kappaSq^2 * p.^4 / L^4 + c^4 + 4 * c^2 * pi^2 * kappaSq * p.^2 / L^2)) - c^2)/(2*kappaSq));
@@ -183,12 +200,12 @@ for n = 1:lengthSound
         beta = p * pi / L;
     end
     expectedF = 1/(pi*k) * asin(sqrt(lambdaSq * sin(beta * h / 2).^2 + 4 * muSq * sin(beta*h / 2).^4));
-%     plot(expectedF);
+    plot(expectedF);
     
-    subplot(212)
-    centDeviation(n, 1:(M+Mw)) = 1200 * log2(f(1:(M+Mw))./expectedF');
+%     subplot(212)
+%     centDeviation(n, 1:(M+Mw)) = 1200 * log2(f(1:(M+Mw))./expectedF');
 %     plot (centDeviation(n, 1:(M+Mw)));
-%     drawnow;
+    drawnow;
    
 
     NPrev = N;
