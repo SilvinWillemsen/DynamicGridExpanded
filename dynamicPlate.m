@@ -1,4 +1,4 @@
-% close all;
+close all;
 clear all;
 
 drawThings = false;
@@ -9,34 +9,83 @@ if plotPropagation
 end
 drawSpeed = 10;
 
-dispCorr = false;
+dispCorr = true;
 plotLim = 1e-4;
-numFromBoundX = -1;
-numFromBoundY = -1;
+numFromBoundX = 1;
+numFromBoundY = 1;
 %% Initialise variables
 fs = 44100;         % Sample rate [Hz]
 k = 1 / fs;         % Time step [s]
-lengthSound = fs * 2;   % Length of the simulation (1 second) [samples]             
 drawStart = 1.5*fs;
 
 rho = 7850;
 H = 0.005;
-Evec = linspace(sqrt(2e12), sqrt(2e12), lengthSound).^2;
+
+% params = [2, 1, 7850, 5e-3, 2e11, 1, 0.005;
+%           0.25, 0.25, 19300, 1e-3, 7.8e9, 0.1, 0.0005;]';
+
+%% thickness change
+params = [0.5, 1, 7850, 5e-3, 2e11, 1, 0.005;
+          0.5, 1, 7850, 5e-2, 2e11, 1, 0.01;]';
+
+% %% length change
+% params = [0.5, 0.25, 7850, 5e-4, 2e13, 0.5, 0.005;
+%           1, 0.5, 7850, 5e-4, 2e13, 0.5, 0.005;
+%           0.5, 0.25, 7850, 5e-4, 2e13, 0.5, 0.005;]';
+%       
+%% length change
+params = [0.5, 0.25, 7850, 5e-3, 2e12, 0.5, 0.005;
+          0.5, 0.5, 7850, 5e-3, 2e12, 0.5, 0.005;
+          0.5, 0.25, 7850, 5e-3, 2e12, 0.5, 0.005;]';
+
+numParams = size(params, 1);
+numChanges = size(params, 2);
+lengthSound = numChanges*2 * fs;
+chunkSize = ceil(lengthSound / (numChanges*2));
+paramVecs = zeros(numParams, lengthSound);
+
+paramVecs = params(:, 1) * ones(1, chunkSize);
+for i = 1:numChanges-1
+    paramMat = [];
+    for j = 1:numParams
+        if j == 1 || j == 2
+            paramMat = [paramMat; sqrt(1./linspace(1/(params(j, i))^2, 1/(params(j, i+1))^2, chunkSize))];
+        elseif j == 3
+            paramMat = [paramMat; 1./linspace(1/sqrt(params(j, i)), 1/sqrt(params(j, i+1)), chunkSize).^2];
+        elseif j == 4
+            paramMat = [paramMat; linspace(nthroot(params(j, i), 4), nthroot(params(j, i+1), 4), chunkSize).^4];
+        elseif j == 5
+            paramMat = [paramMat; linspace(sqrt(params(j, i)), sqrt(params(j, i+1)), chunkSize).^2];
+        else
+            paramMat = [paramMat; linspace(params(j, i), params(j, i+1), chunkSize)];
+        end
+    end
+    paramVecs = [paramVecs, paramMat];
+
+    paramVecs = [paramVecs, params(:, i+1) .* ones(numParams, chunkSize)];
+
+end
+paramVecs = [paramVecs, params(:, end) .* ones(numParams, chunkSize)];
+      
+LxVec = paramVecs(1, :);
+LyVec = paramVecs(2, :);
+rhoVec = paramVecs(3, :);
+Hvec = paramVecs(4, :);
+Evec = paramVecs(5, :);
+sig0Vec = paramVecs(6, :);
+sig1Vec = paramVecs(7, :);
+
 nu = 0.3;
-Dvar = Evec * H^3 / (12 * (1 - nu^2));
-kappaSqVec = Dvar / (rho * H);
+Dvar = Evec .* Hvec.^3 / (12 * (1 - nu^2));
+kappaSqVec = Dvar ./ (rhoVec .* Hvec);
 
-sig0 = 0;
-sig1 = 0.000;
+h = 2 * sqrt(k * (sig1Vec(1) + sqrt(sig1Vec(1)^2 + kappaSqVec(1)))); 
+hVec = 2 * sqrt(k * (sig1Vec + sqrt(sig1Vec.^2 + kappaSqVec)));
 
-Lx = linspace(0.3, 1, lengthSound);
+NxVec = LxVec ./ hVec
+NyVec = LyVec ./ hVec
 
-% Lx = 0.5;
-Ly = linspace(0.4, 0.4, lengthSound);
-
-h = 2 * sqrt(k * (sig1 + sqrt(sig1^2 + kappaSqVec(1)))); 
-
-Nx = floor(Lx(1)/h);
+Nx = floor(LxVec(1)/h);
 NxPrev = Nx;
 
 if numFromBoundX == -1
@@ -48,7 +97,7 @@ else
 end
 
 
-Ny = floor(Ly(1)/h);
+Ny = floor(LyVec(1)/h);
 NyPrev = Ny;
 
 if numFromBoundY == -1
@@ -69,12 +118,12 @@ q = zeros(Ny * Nx, 1);
 % halfWidth = floor(min(Nx, Ny) / 10);
 halfWidth = 1;
 width = 2 * halfWidth + 1;
-xInLoc = 1;
-yInLoc = 1;
+xInLoc = 2;
+yInLoc = 2;
 
 % Implemented to be "number-of-point from right / bottom boundary
-xOutLoc = 1;
-yOutLoc = 1; 
+xOutLoc = 2;
+yOutLoc = 2; 
 
 % Set initial velocity to zero
 qPrev = q;
@@ -85,16 +134,19 @@ nCounter = 0;
 percentCounter = 0;
 %% Simulation loop
 for n = 1:lengthSound
-    if sig0 == 0 && sig1 == 0
-        if n == 1
-            q((xInLoc-1) * Ny + yInLoc) = 1;
-        end
-    elseif mod(n, fs/2) == 1
-        q((xInLoc-1) * Ny + yInLoc) = 1;
+%     if sig0Vec(n) == 0 && sig1Vec(n) == 0
+%         if n == 1
+%             q((xInLoc-1) * Ny + yInLoc) = 1;
+%         end
+%     elseif mod(n, fs/2) == 1
+%         q((xInLoc-1) * Ny + yInLoc) = 1;
+%     end
+    if mod(n, floor(chunkSize / 2)) == 1
+        q((xInLoc-1) * Ny + yInLoc) = 1/h;
     end
     
-    h = 2 * sqrt(k * (sig1 + sqrt(sig1^2 + kappaSqVec(n)))); 
-    NxFrac = Lx(n)/h;
+    h = 2 * sqrt(k * (sig1Vec(n) + sqrt(sig1Vec(n)^2 + kappaSqVec(n)))); 
+    NxFrac = LxVec(n)/h;
     Nx = floor(NxFrac);
 
     alfX = NxFrac - Nx;
@@ -151,10 +203,10 @@ for n = 1:lengthSound
             
             qBordersDiffX = qTmp(:, Mx+1) - qTmp(:, Mx);
             
-            subplot(2,1,1)
-            plot(qBordersDiffX)
-            ylim([-plotLim, plotLim])
-            drawnow;
+%             subplot(2,1,1)
+%             plot(qBordersDiffX)
+%             ylim([-plotLim, plotLim])
+%             drawnow;
             if numFromBoundY == -1
                 if mod(Nx, 2) == 0
                     qNext = reshape([qNextTmp(:, 1:Mx-1), qNextTmp(:, Mx+1:end)], Ny*Nx, 1);
@@ -184,7 +236,7 @@ for n = 1:lengthSound
     end
     NxPrev = Nx;
     
-    NyFrac = Ly(n)/h;
+    NyFrac = LyVec(n)/h;
     Ny = floor(NyFrac);
 
     alfY = NyFrac - Ny;
@@ -240,11 +292,11 @@ for n = 1:lengthSound
             qPrevTmp = reshape(qPrev, NyPrev, Nx);
             
             qBordersDiffY = qTmp(My+1, :) - qTmp(My, :);
-            subplot(2,1,2)
-            plot(qBordersDiffY);
-            ylim([-plotLim, plotLim])
-
-            drawnow;
+%             subplot(2,1,2)
+%             plot(qBordersDiffY);
+%             ylim([-plotLim, plotLim])
+% 
+%             drawnow;
             if numFromBoundY == -1
                 if mod(Ny, 2) == 0
                     qNext = reshape([qNextTmp(1:My-1, :); qNextTmp(My+1:end, :)], Ny*Nx, 1);
@@ -318,9 +370,9 @@ for n = 1:lengthSound
     
     D = kron(speye(Nx), Dyy) + kron(Dxx, speye(Ny));
     DD = D * D;
-    B = 2 * speye(Ny*Nx) - kappaSqVec(n) * k^2 * DD + 2 * sig1 * k * D;
-    Amat = speye(Ny*Nx) * (1 + sig0 * k);
-    C = (-1 + sig0 * k) * speye(Ny*Nx) - 2 * sig1 * k * D;
+    B = 2 * speye(Ny*Nx) - kappaSqVec(n) * k^2 * DD + 2 * sig1Vec(n) * k * D;
+    Amat = speye(Ny*Nx) * (1 + sig0Vec(n) * k);
+    C = (-1 + sig0Vec(n) * k) * speye(Ny*Nx) - 2 * sig1Vec(n) * k * D;
     
     %% Update equation
     qNext = Amat \ (B * q + C * qPrev);

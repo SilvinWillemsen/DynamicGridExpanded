@@ -17,7 +17,6 @@ k = 1/fs;               % Time step (in s)
 if plotModalAnalysis
     lengthSound = 1000;   % Length of the simulation (in samples)
 else
-    lengthSound = fs * 3;
 end
 
 %{
@@ -41,11 +40,14 @@ dispCorr = true;
 f0 = 200;
 7850 * 0.0002794^2 * pi
 Tuse = (f0^2 * 78.50 * pi * (0.002794)^2) * (2 * 1)^2;
-% params = [1, 7850, 5e-4, 555, 2e11, 1, 0.005;
-%           1, 7850, 5e-4, 0, 7e12, 1, 0.005;
-%           0.3, 7850, 5e-4, 0, 7e12, 1, 0.005;
-%           0.3, 7850, 5e-4, 0, 2e12, 1, 0.01;]';
-rUse = 0.0002794;
+params = [1, 7850, 5e-4, 555, 2e11, 1, 0.005;
+          0.5, 7850, 5e-4, 555, 2e11, 1, 0.005;
+%           0.3, 7850, 5e-4, 0, 2e11, 1, 0.005;
+          0.5, 7850, 5e-4, 0, 7e13, 1, 0.005;
+          0.5, 7850, 5e-4, 0, 7e13*1/4, 1.5, 0.05;]';
+% params = [1, 7850, 5e-4, 555, 2e11, 1, 0.005;]';
+%% string inharmonicity
+rUse = 0.0002;
 E1 = 2e11;
 E2 = 2e13;
 T1 = (f0^2 * 7850 * pi * rUse^2) * (2 * 1)^2;
@@ -53,15 +55,13 @@ T2 = T1 + (E1 - E2) * rUse^4 * pi^3 / (4 * 1^2);
 params = [1, 7850, rUse, T1, E1, 1, 0.005;
           1, 7850, rUse, T2, E2, 1, 0.005;
           ]';
-%           1, 7850, 5e-4, 0, 2e11, 1, 0.01;]';
-%           0.5, 7850, 5e-4, 300, sqrt(2e11), 1, 0.005;
-%           0.3, 7850, 5e-4, 300, sqrt(2e11), 1, 0.005;]';
      
 changeRatio = 0.5;
 
 numParams = size(params, 1);
 numChanges = size(params, 2);
-chunkSize = floor(lengthSound / (numChanges*2 - 1));
+lengthSound = numChanges*2 * fs;
+chunkSize = ceil(lengthSound / (numChanges*2));
 paramVecs = zeros(numParams, lengthSound);
 
 paramVecs = params(:, 1) * ones(1, chunkSize);
@@ -85,6 +85,8 @@ for i = 1:numChanges-1
     paramVecs = [paramVecs, params(:, i+1) .* ones(numParams, chunkSize)];
 
 end
+paramVecs = [paramVecs, params(:, end) .* ones(numParams, chunkSize)];
+
 Lvec = paramVecs(1, :);
 rhoVec = paramVecs(2, :);
 rVec = paramVecs(3, :);
@@ -92,30 +94,6 @@ Tvec = paramVecs(4, :);
 Evec = paramVecs(5, :);
 sig0Vec = paramVecs(6, :);
 sig1Vec = paramVecs(7, :);
-% Lvec = [startParams(1) * ones(1, floor(0.5 * (1-changeRatio) * lengthSound)), linspace(startParams(1), endParams(1), floor(changeRatio * lengthSound))];
-% rhoVec = [startParams(2) * ones(1, floor(0.5 * (1-changeRatio) * lengthSound)), linspace(startParams(2), endParams(2), floor(changeRatio * lengthSound))];
-% rVec = [startParams(3) * ones(1, floor(0.5 * (1-changeRatio) * lengthSound)), linspace(startParams(3), endParams(3), floor(changeRatio * lengthSound))];
-% Tvec = [startParams(4) * ones(1, floor(0.5 * (1-changeRatio) * lengthSound)), linspace(startParams(4), endParams(4), floor(changeRatio * lengthSound))];
-% Evec = [startParams(5) * ones(1, floor(0.5 * (1-changeRatio) * lengthSound)), linspace(startParams(5), endParams(5), floor(changeRatio * lengthSound))];
-% sig0Vec = [startParams(6) * ones(1, floor(0.5 * (1-changeRatio) * lengthSound)), linspace(startParams(6), endParams(6), floor(changeRatio * lengthSound))];
-% sig1Vec = [startParams(7) * ones(1, floor(0.5 * (1-changeRatio) * lengthSound)), linspace(startParams(7), endParams(7), floor(changeRatio * lengthSound))];
-% Lvec = [Lvec, ones(1, lengthSound - length(Lvec)) * endParams(1)];
-% rhoVec = ([rhoVec, ones(1, lengthSound - length(rhoVec)) * endParams(2)]).^2;
-% rVec = ([rVec, ones(1, lengthSound - length(rVec)) * endParams(3)]).^2;
-% Tvec = sqrt([Tvec, ones(1, lengthSound - length(Tvec)) * endParams(4)]).^2;
-% Evec = ([Evec, ones(1, lengthSound - length(Evec)) * endParams(5)]).^2;
-% sig0Vec = [sig0Vec, ones(1, lengthSound - length(sig0Vec)) * endParams(6)];
-% sig1Vec = [sig1Vec, ones(1, lengthSound - length(sig1Vec)) * endParams(7)];
-
-% Evec = linspace(sqrt(2e11), sqrt(2e12), lengthSound*1/4).^2;
-% Evec = [ones(1, floor(lengthSound * 1/8)) *  Evec(1), Evec];
-% Evec = [Evec, ones(1, floor(lengthSound * 1/8)) * Evec(end)];
-% Evec = [Evec, fliplr(Evec)];
-% Evec = [Evec, ones(1, lengthSound - length(Evec)) * Evec(end)];
-
-% Evec = linspace(sqrt(0), sqrt(0), lengthSound).^2;
-
-% Evec = [Evec, ones(1, lengthSound - length(Evec)) * Evec(end)];
 
 A = pi * rVec(1)^2;
 I = pi / 4 * rVec(1)^4;
@@ -139,7 +117,7 @@ sigmaSave = zeros (lengthSound, Nmax);
 pIdx = lengthSound-1;
 p = 1;
 if cSqVec(pIdx) == 0
-    f0 = sqrt(kappaSqVec(pIdx)) * pi / 2 * (p)^2 / L^2;
+    f0 = sqrt(kappaSqVec(pIdx)) * pi / 2 * (p)^2 / Lvec(pIdx)^2;
 else
     f0 = sqrt(cSqVec(pIdx)) * p / (2 * Lvec(pIdx)) * sqrt(1 + kappaSqVec(pIdx) * pi^2 / (cSqVec(pIdx) * Lvec(pIdx)^2) * p^2);
 end
@@ -178,12 +156,13 @@ out = zeros(floor(lengthSound), 1);
 %% main loop
 for n = 1:lengthSound  
 
-    if mod(n, chunkSize / 2) == 1
+    if mod(n, floor(chunkSize / 2)) == 1
 %         q = q + 1/h * hann(N);
 %         qMat = qMat + 1/h * hann(N);
-        div = 10;
-        q(1:floor(N/div)) = q(1:floor(N/div)) + 1/h * hann(floor(N/div));
-        qMat(1:floor(N/div)) = qMat(1:floor(N/div)) + 1/h * hann(floor(N/div));
+        rangeEnd = floor(N/10);
+        rangeEnd = 5;
+        q(1:rangeEnd) = q(1:rangeEnd) + 1/h * hann(rangeEnd);
+        qMat(1:rangeEnd) = qMat(1:rangeEnd) + 1/h * hann(rangeEnd);
     end
     
     % Retrieve new params
