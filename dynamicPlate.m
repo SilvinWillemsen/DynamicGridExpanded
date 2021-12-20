@@ -1,4 +1,4 @@
-close all;
+% close all;
 clear all;
 
 drawThings = false;
@@ -7,30 +7,32 @@ plotPropagation = false;
 if plotPropagation 
     figure('Position', [440 585 815 213])
 end
-drawSpeed = 1;
-drawStart = 0;
+drawSpeed = 10;
 
-numFromBoundX = 1;
-numFromBoundY = 1;
+dispCorr = false;
+plotLim = 1e-4;
+numFromBoundX = -1;
+numFromBoundY = -1;
 %% Initialise variables
 fs = 44100;         % Sample rate [Hz]
 k = 1 / fs;         % Time step [s]
-lengthSound = fs * 5;   % Length of the simulation (1 second) [samples]             
+lengthSound = fs * 2;   % Length of the simulation (1 second) [samples]             
+drawStart = 1.5*fs;
 
 rho = 7850;
 H = 0.005;
-Evec = linspace(sqrt(2e13), sqrt(2e11), lengthSound).^2;
+Evec = linspace(sqrt(2e12), sqrt(2e12), lengthSound).^2;
 nu = 0.3;
 Dvar = Evec * H^3 / (12 * (1 - nu^2));
 kappaSqVec = Dvar / (rho * H);
 
-sig0 = 1;
-sig1 = 0.05;
+sig0 = 0;
+sig1 = 0.000;
 
-Lx = linspace(1, 1, lengthSound);
+Lx = linspace(0.3, 1, lengthSound);
 
 % Lx = 0.5;
-Ly = linspace(0.5, 0.5, lengthSound);
+Ly = linspace(0.4, 0.4, lengthSound);
 
 h = 2 * sqrt(k * (sig1 + sqrt(sig1^2 + kappaSqVec(1)))); 
 
@@ -67,12 +69,12 @@ q = zeros(Ny * Nx, 1);
 % halfWidth = floor(min(Nx, Ny) / 10);
 halfWidth = 1;
 width = 2 * halfWidth + 1;
-xInLoc = 5;
-yInLoc = 5;
+xInLoc = 1;
+yInLoc = 1;
 
 % Implemented to be "number-of-point from right / bottom boundary
-xOutLoc = 5;
-yOutLoc = 5; 
+xOutLoc = 1;
+yOutLoc = 1; 
 
 % Set initial velocity to zero
 qPrev = q;
@@ -83,7 +85,11 @@ nCounter = 0;
 percentCounter = 0;
 %% Simulation loop
 for n = 1:lengthSound
-    if mod(n, fs/2) == 1
+    if sig0 == 0 && sig1 == 0
+        if n == 1
+            q((xInLoc-1) * Ny + yInLoc) = 1;
+        end
+    elseif mod(n, fs/2) == 1
         q((xInLoc-1) * Ny + yInLoc) = 1;
     end
     
@@ -136,11 +142,37 @@ for n = 1:lengthSound
                 qPrev = reshape([qPrevTmp(:, 1:Mx), qBordersPrevX * cubicIpX', qPrevTmp(:, Mx+1:end)], Ny*Nx, 1);
               
             end
-   
+           disp("added column at n = " + num2str(n))
+
         else
-            %%%
+            qNextTmp = reshape(qNext, Ny, NxPrev);
+            qTmp = reshape(q, Ny, NxPrev);
+            qPrevTmp = reshape(qPrev, Ny, NxPrev);
+            
+            qBordersDiffX = qTmp(:, Mx+1) - qTmp(:, Mx);
+            
+            subplot(2,1,1)
+            plot(qBordersDiffX)
+            ylim([-plotLim, plotLim])
+            drawnow;
+            if numFromBoundY == -1
+                if mod(Nx, 2) == 0
+                    qNext = reshape([qNextTmp(:, 1:Mx-1), qNextTmp(:, Mx+1:end)], Ny*Nx, 1);
+                    q = reshape([qTmp(:, 1:Mx-1), qTmp(:, Mx+1:end)], Ny*Nx, 1);
+                    qPrev = reshape([qPrevTmp(:, 1:Mx-1), qPrevTmp(:, Mx+1:end)], Ny*Nx, 1);
+                else
+                    qNext = reshape([qNextTmp(:, 1:Mx), qNextTmp(:, Mx+2:end)], Ny*Nx, 1);
+                    q = reshape([qTmp(:, 1:Mx), qTmp(:, Mx+2:end)], Ny*Nx, 1);
+                    qPrev = reshape([qPrevTmp(:, 1:Mx), qPrevTmp(:, Mx+2:end)], Ny*Nx, 1);
+                end
+            else
+                qNext = reshape([qNextTmp(:, 1:Mx-1), qNextTmp(:, Mx+1:end)], Ny*Nx, 1);
+                q = reshape([qTmp(:, 1:Mx-1), qTmp(:, Mx+1:end)], Ny*Nx, 1);
+                qPrev = reshape([qPrevTmp(:, 1:Mx-1), qPrevTmp(:, Mx+1:end)], Ny*Nx, 1);
+            end
+            disp("removed column at n = " + num2str(n))
+
         end
-        disp("added column at n = " + num2str(n))
         
         if numFromBoundX == -1
             Mx = ceil(Nx * 0.5);
@@ -200,11 +232,37 @@ for n = 1:lengthSound
                 qPrev = reshape([qPrevTmp(1:My, :); cubicIpY * qBordersPrevY; qPrevTmp(My+1:end, :)], Ny*Nx, 1);
               
             end
-   
+           	disp("added row at n = " + num2str(n))
+
         else
-            %%%
+            qNextTmp = reshape(qNext, NyPrev, Nx);
+            qTmp = reshape(q, NyPrev, Nx);
+            qPrevTmp = reshape(qPrev, NyPrev, Nx);
+            
+            qBordersDiffY = qTmp(My+1, :) - qTmp(My, :);
+            subplot(2,1,2)
+            plot(qBordersDiffY);
+            ylim([-plotLim, plotLim])
+
+            drawnow;
+            if numFromBoundY == -1
+                if mod(Ny, 2) == 0
+                    qNext = reshape([qNextTmp(1:My-1, :); qNextTmp(My+1:end, :)], Ny*Nx, 1);
+                    q = reshape([qTmp(1:My-1, :); qTmp(My+1:end, :)], Ny*Nx, 1);
+                    qPrev = reshape([qPrevTmp(1:My-1, :); qPrevTmp(My+1:end, :)], Ny*Nx, 1);
+                else
+                    qNext = reshape([qNextTmp(1:My, :); qNextTmp(My+2:end, :)], Ny*Nx, 1);
+                    q = reshape([qTmp(1:My, :); qTmp(My+2:end, :)], Ny*Nx, 1);
+                    qPrev = reshape([qPrevTmp(1:My, :); qPrevTmp(My+2:end, :)], Ny*Nx, 1);
+                end
+            else
+                qNext = reshape([qNextTmp(1:My-1, :); qNextTmp(My+1:end, :)], Ny*Nx, 1);
+                q = reshape([qTmp(1:My-1, :); qTmp(My+1:end, :)], Ny*Nx, 1);
+                qPrev = reshape([qPrevTmp(1:My-1, :); qPrevTmp(My+1:end, :)], Ny*Nx, 1);
+            end
+            disp("removed row at n = " + num2str(n))
+
         end
-        disp("added row at n = " + num2str(n))
 
         if numFromBoundY == -1
             My = ceil(Ny * 0.5);
@@ -267,6 +325,85 @@ for n = 1:lengthSound
     %% Update equation
     qNext = Amat \ (B * q + C * qPrev);
     
+    %% Displacement correction
+    if dispCorr
+        epsilon = 0; % Calculation is still defined for epsilon = 0 
+        sigDC = 0.1; % Damping coefficient
+        
+        qNextTmp = reshape(qNext, Ny, Nx);
+        qTmp = reshape(q, Ny, Nx);
+        qPrevTmp = reshape(qPrev, Ny, Nx);
+            
+        % exclude connections
+        startIndices = [1, Mx+2, My+2, 1];
+        endIndices = [My-1, Nx, Ny, Mx-1];
+        
+        %% Calculate correction force
+        
+        % horizontal states (along vertical inner boundaries)
+        etaPrevX1 = qPrevTmp(1:My-1, Mx+1) - qPrevTmp(1:My-1, Mx);
+        etaPrevX2 = qPrevTmp(My+2:Ny, Mx+1) - qPrevTmp(My+2:Ny, Mx);
+        etaNextX1 = qNextTmp(1:My-1, Mx+1) - qNextTmp(1:My-1, Mx);
+        etaNextX2 = qNextTmp(My+2:Ny, Mx+1) - qNextTmp(My+2:Ny, Mx);
+
+        % vertical states (along horizontal inner boundaries)
+        etaPrevY1 = qPrevTmp(My+1, 1:Mx-1) - qPrevTmp(My, 1:Mx-1);
+        etaPrevY2 = qPrevTmp(My+1, Mx+2:Nx) - qPrevTmp(My, Mx+2:Nx);
+        etaNextY1 = qNextTmp(My+1, 1:Mx-1) - qNextTmp(My, 1:Mx-1);
+        etaNextY2 = qNextTmp(My+1, Mx+2:Nx) - qNextTmp(My, Mx+2:Nx);
+
+        rForce = (1 - sigDC / k) / (1 + sigDC / k);
+        oOPX = (h^2 * (1 + sigDC / k) * (1-alfX)) / (2 * h^2 * (alfX + epsilon) + 2 * k^2 * (1 + sigDC / k) * (1-alfX));
+        oOPY = (h^2 * (1 + sigDC / k) * (1-alfY)) / (2 * h^2 * (alfY + epsilon) + 2 * k^2 * (1 + sigDC / k) * (1-alfY));
+        
+        % Here, uNext and wNext are the 'intermediate' states of u and w (schemes without connection forces)
+        FX1 = (etaNextX1 + rForce * etaPrevX1) * oOPX;
+        FX2 = (etaNextX2 + rForce * etaPrevX2) * oOPX;
+        FY1 = (etaNextY1 + rForce * etaPrevY1) * oOPY;
+        FY2 = (etaNextY2 + rForce * etaPrevY2) * oOPY;
+        
+        %% Add displacement correction to inner boundaries
+        qNextTmp(1:My-1, Mx) = qNextTmp(1:My-1, Mx) + k^2/h^2 * FX1;
+        qNextTmp(1:My-1, Mx+1) = qNextTmp(1:My-1, Mx+1) - k^2/h^2 * FX1;
+
+        qNextTmp(My+2:end, Mx) = qNextTmp(My+2:end, Mx) + k^2/h^2 * FX2;
+        qNextTmp(My+2:end, Mx+1) = qNextTmp(My+2:end, Mx+1) - k^2/h^2 * FX2;
+        
+        qNextTmp(My, 1:Mx-1) = qNextTmp(My, 1:Mx-1) + k^2/h^2 * FY1;
+        qNextTmp(My+1, 1:Mx-1) = qNextTmp(My+1, 1:Mx-1) - k^2/h^2 * FY1;
+        
+        qNextTmp(My, Mx+2:Nx) = qNextTmp(My, Mx+2:Nx) + k^2/h^2 * FY2;
+        qNextTmp(My+1, Mx+2:Nx) = qNextTmp(My+1, Mx+2:Nx) - k^2/h^2 * FY2;
+        
+        betaX = (1-alfX) / (alfX + epsilon);
+        betaY = (1-alfY) / (alfY + epsilon);
+        pxPlus = betaX * (1 + sigDC / k) * k^2 / (2 * h^2);
+        pyPlus = betaY * (1 + sigDC / k) * k^2 / (2 * h^2);
+        pxMin = betaX * (1 - sigDC / k) * k^2 / (2 * h^2);
+        pyMin = betaY * (1 - sigDC / k) * k^2 / (2 * h^2);
+        etaPrevX1 = qPrevTmp(My, Mx+1) - qPrevTmp(My, Mx); % etaX1
+        etaPrevY1 = qPrevTmp(My+1, Mx) - qPrevTmp(My, Mx); % etaY1
+        etaPrevY2 = qPrevTmp(My+1, Mx+1) - qPrevTmp(My, Mx+1); % etaY2
+        etaPrevX2 = qPrevTmp(My+1, Mx+1) - qPrevTmp(My+1, Mx); % etaX2
+
+        pMat = [1 + pxPlus + pyPlus, -pxPlus, -pyPlus, 0;
+                -pxPlus, 1 + pxPlus + pyPlus, 0, -pyPlus;
+                -pyPlus, 0, 1 + pxPlus + pyPlus, -pxPlus;
+                0, -pyPlus, -pxPlus, 1 + pxPlus + pyPlus];
+        v2D = [qNextTmp(My, Mx)     + pxMin * etaPrevX1 + pyMin * etaPrevY1;
+               qNextTmp(My, Mx+1)   - pxMin * etaPrevX1 + pyMin * etaPrevY2;
+               qNextTmp(My+1, Mx)   + pxMin * etaPrevX1 - pyMin * etaPrevY1;
+               qNextTmp(My+1, Mx+1) - pxMin * etaPrevX2 - pyMin * etaPrevY2];
+        solut2D = pMat \ v2D;
+        qNextTmp(My, Mx) = solut2D(1);
+        qNextTmp(My, Mx+1) = solut2D(2);
+        qNextTmp(My+1, Mx) = solut2D(3);
+        qNextTmp(My+1, Mx+1) = solut2D(4);
+        qNext = reshape(qNextTmp, Ny*Nx, 1);
+
+    end
+
+    
     out(n) = q((xInLoc-1 + 3) * Ny + (yInLoc + 3));
 
     
@@ -292,4 +429,4 @@ for n = 1:lengthSound
     q = qNext;
     
 end
-
+spectrogram (out,512,64,512, 44100, 'yaxis');

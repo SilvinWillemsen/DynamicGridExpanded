@@ -40,7 +40,8 @@ function [f, sigma, z] = analyseQ (Q, k, varargin)
     
     [~, z, phi] = eig(full(Q), 'vector');         % Solutions to eigenvalue problem
     s = log(z)/k;       % z = e^{sk} --> s = ln(z)/k
-
+%     plot(abs(z));
+%     drawnow;
     % As s = j*omega + sigma, we can obtain the (angular) eigenfrequencies
     % by taking the imaginary part of s and the damping coefficients by
     % taking the real part of s. 
@@ -54,7 +55,7 @@ function [f, sigma, z] = analyseQ (Q, k, varargin)
     [omega, order] = sort(imag(s)); % also save the order of the frequencies to be used for sigma    
     phi = real(phi(:, order));
     f = omega/(2*pi);      % convert to frequency in Hz
-    
+    z = z(order);
     sigma = real(s(order)); % get the damping coefficients 
     
     %% Plot results

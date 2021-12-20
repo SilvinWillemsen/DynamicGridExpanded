@@ -1,6 +1,6 @@
 %to be used with modalAnalysis.m
 modesSave(modesSave<=0) = nan;
-if (Nend-NinitSave) < 0
+if (Nend-Nstart) < 0
     modesSaveRange = 2:size(modesSave, 1);
     loopStartRange1 = 2:length(loopStart)-1;
 else

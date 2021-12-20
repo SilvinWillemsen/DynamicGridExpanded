@@ -14,7 +14,7 @@ for scatLoop = 1:size(modesSave, 2)
     hold on;
 end
 hold off
-title ("Modal Analysis $\mathcal{N}^n = " + loopNStart + " \rightarrow" + loopNend + "$", 'interpreter', 'latex');
+% title ("Modal Analysis $\mathcal{N}^n = " + N + " \rightarrow" + loopNend + "$", 'interpreter', 'latex');
 xlabelsave = num2cell(NinitSave:sign(Nend-NinitSave):Nend);
 set(gca, 'Linewidth', 2, 'Fontsize', 16, 'XTick', loopStart(loopStartRange1(1:end-1)), ... %loopStart(loopStartRange1)
     'xticklabel', xlabelsave, 'TickLabelInterpreter', 'latex', ...
