@@ -202,11 +202,8 @@ for n = 1:lengthSound
     kappaSq = Evec(n) * I / (rhoVec(n) * A);
 
     h = sqrt((cSq * k^2 + 4 * sig1Vec(n) * k + sqrt((cSq * k^2 + 4 * sig1Vec(n) * k)^2 + 16 * kappaSq * k^2))/2);
-    if Lstart < Lend
-        L = (Nfrac + 1/10) * h;
-    else
-        L = (Nfrac - 1/10) * h;
-    end
+    if Lstart > Lend
+    L = (Nfrac + 1/10) * h;
     Lvec(n) = L;
     Nfrac = L / h;
     N = floor(Nfrac);
