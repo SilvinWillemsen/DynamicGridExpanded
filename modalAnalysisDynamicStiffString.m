@@ -2,15 +2,16 @@
     Dynamic stiff string...
 %}
 
-clear all;
-close all;
+% clear all;
+% close all;
 clc;
 
 %% Draw settings
 fs = 44100;             % Sample rate (in Hz)
 k = 1/fs;               % Time step (in s)
-lengthSound = 1000;   % Length of the simulation (in samples)
+lengthSound = 501;   % Length of the simulation (in samples)
 maxEig = false;
+plotOneStep = false;
 %{
     Where to add points along the system
     -1: Adding to the center alternating between left and right system.
@@ -33,7 +34,7 @@ Nend = 20;
 
 Nvec = linspace(Nstart, Nend, lengthSound);
 
-changeWaveSpeed = true;
+changeWaveSpeed = false;
 
 %% Initialise parameters speeds for the entire simulation
 Lvec = linspace(1, 1, lengthSound);   
@@ -42,7 +43,7 @@ r = 5e-4;
 A = pi * r^2; 
 I = pi / 4 * r^4;
 
-Evec = linspace(sqrt(0), sqrt(0), lengthSound).^2;
+Evec = linspace(sqrt(2e11), sqrt(2e11), lengthSound).^2;
 E = Evec(1);
 kappaSq = E * I / (rho * A);
 if changeWaveSpeed
@@ -220,9 +221,9 @@ for n = 1:lengthSound
     Ju = [zeros(M-1, 1); 1/h; -1/h; zeros(Mw-1, 1)];
     etaVec = [zeros(1, M-1), -1, 1, zeros(1, Mw-1)];
 
-    Amat = (1 + sig0 * k) * Id;% - b * k^2 * (1 + sigX/k) / 2 * Ju * etaVec;
+    Amat = (1 + sig0 * k) * Id - b * k^2 * (1 + sigX/k) / 2 * Ju * etaVec;
     B = 2 * Id + c^2 * k^2 * Dxx - kappaSq * k^2 * Dxxxx + 2 * sig1 * k * Dxx;
-    C = -(1 - sig0 * k) * Id - 2 * sig1 * k * Dxx;% + b * k^2 * (1 - sigX/k) / 2 * Ju * etaVec;
+    C = -(1 - sig0 * k) * Id - 2 * sig1 * k * Dxx + b * k^2 * (1 - sigX/k) / 2 * Ju * etaVec;
     
     if sig0 == 0 && sig1 == 0 && ~maxEig
         if kappaSq == 0
@@ -231,11 +232,13 @@ for n = 1:lengthSound
             f = sort(real(1/(pi * k) * asin(sqrt(kappaSq) * k / 2 * sqrt(eig(Dxxxx)))));
         else
             f = sort(real(1/(pi * k) * asin(1/2 * sqrt(-eig(c^2*k^2 * Dxx - kappaSq * k^2 * Dxxxx)))));
-
+            ftest = sort(real(1/(2*pi*k) * acos(1/2 * eig(B))));
         end
         modesSave(n, 1:(M+Mw)) = f(1:(M+Mw));
+%         modesSaveTest(n, 1:(M+Mw)) = ftest(1:(M+Mw));
 
-    else
+    end
+    if plotOneStep
         Q = [Amat\B, Amat\C; ...
                   eye(size(B)), zeros(size(B))];
         [f, sigma, zSav] = analyseQ(Q, k);
@@ -341,28 +344,13 @@ for NN = 1:(Nend-Nstart)
     minSave(NN) = min(min(centDeviation(nChangeSave(NN):nChangeSave(NN+1)-1, :)));
 end
 % ylim([-120, max(max(centDeviation))]);
+if plotOneStep
+    disp("Plotting One-Step Analysis");
+    plotOneStepAnalysis;
+    return;
+end
 
-figure('Position', [489 542 560 315]);
-% 
-plot(real(expectedF(1:n, :)), '--', 'color', [1, 0, 0, 0.5], 'Linewidth', 1.5)
-hold on
-plot(modesSave(1:n, :), 'k', 'Linewidth', 1.5)
-hold on;
-xticks(nChangeSave);
-xticklabels(string(Nstart:Nend));
-% figure
-title ("Modal Analysis $\mathcal{N} = " + Nstart + " \rightarrow" + Nend + "$", 'interpreter', 'latex');
-xlabelsave = num2cell(Nstart:sign(Nend-Nstart):Nend);
-set(gca, 'Linewidth', 2, 'Fontsize', 16, 'TickLabelInterpreter', 'latex', ...
-    'Position', [0.0929 0.1100 0.8696 0.8086])
-xLab = xlabel("$\mathcal{N}$", 'interpreter', 'latex');
-ylabel("Frequency (Hz)", 'interpreter', 'latex')
-xLab.Position(1) = 567;
-xLab.Position(2) =-1000;
-ylim([0, fs / 2])
-xlim([0, lengthSound+1])
-grid on
-
+plotModesSave;
 % minNVal(minNVal>=0) = nan;
 % plot(minNVal)
 % %%

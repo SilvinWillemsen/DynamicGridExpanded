@@ -3,14 +3,20 @@
 %}
 
 % clear all;
-close all;
+% close all;
 clc;
 
 %% Draw settings
-drawThings = false;
+drawThings = true;
 drawStart = 0;
 drawSpeed = 1;
 plotModalAnalysis = false;
+
+% load cpp
+uSave = load('/Users/SilvinW/repositories/RealTimeDynamic/Builds/MacOSX/DerivedData/uSaveDynamic.csv');
+MvSave = load('/Users/SilvinW/repositories/RealTimeDynamic/Builds/MacOSX/DerivedData/MvSave.csv');
+MwSave = load('/Users/SilvinW/repositories/RealTimeDynamic/Builds/MacOSX/DerivedData/MwSave.csv');
+alfSave = load('/Users/SilvinW/repositories/RealTimeDynamic/Builds/MacOSX/DerivedData/alfSave.csv');
 
 fs = 44100;             % Sample rate (in Hz)
 k = 1/fs;               % Time step (in s)
@@ -57,11 +63,8 @@ params = [1, 7850, 5e-4, 555, 2e11, 1, 0.005;
 %           1, 7850, rUse, T2, E2, 1, 0.005;
 %           ]';
 %% lengthchange
-params = [1, 7850, 5e-4, 5.3282e4, 2e11, 0, 0.000;
-          1, 7850, 5e-4, 2.9961e+04, 2e11, 0, 0.000;
-      ]';
-  params = [1, 7850, 5e-4, 564.508674, 2e11, 1, 0.005;
-          1, 7850, 5e-4, 564.508674, 2e11, 1, 0.005;
+params = [1, 7850, 5e-4, 299.75, 2e11, 2, 0.005;
+          1, 7850, 5e-4, 299.75, 2e11, 2, 0.005;
       ]';
 changeRatio = 0.5;
 onlyChange = true;
@@ -69,7 +72,7 @@ onlyChange = true;
 numParams = size(params, 1);
 numChanges = size(params, 2);
 if onlyChange
-    lengthSound = fs;
+    lengthSound = 10 * fs;
     chunkSize = lengthSound;
 else
     lengthSound = numChanges*2 * fs;
@@ -155,6 +158,10 @@ qPrev = q;
 qMat = q;
 qPrevMat = q;
 
+exciteRange = 54:63;
+q(exciteRange) = q(exciteRange) + hann(10);
+qPrev(exciteRange) = qPrev(exciteRange) + hann(10);
+
 %% Matrices
 DxxFull = zeros(M + Mw);
 
@@ -169,7 +176,8 @@ DxxxxFull = DxxFull * DxxFull;
         
 %% Initialise output
 out = zeros(floor(lengthSound), 1);
-
+L = 1;
+Lend = 2;
 %% main loop
 for n = 1:lengthSound  
 
@@ -181,9 +189,9 @@ for n = 1:lengthSound
         q(1:rangeEnd) = q(1:rangeEnd) + 1/h * hann(rangeEnd);
         qMat(1:rangeEnd) = qMat(1:rangeEnd) + 1/h * hann(rangeEnd);
     elseif n == 1
-        q(1) = 1;
-        qMat(1) = 1;
-        qPrev(1) = 1;
+%         q(1) = 1;
+%         qMat(1) = 1;
+
     end
     
     % Retrieve new params
@@ -193,12 +201,13 @@ for n = 1:lengthSound
     kappaSq = Evec(n) * I / (rhoVec(n) * A);
 
     h = sqrt((cSq * k^2 + 4 * sig1Vec(n) * k + sqrt((cSq * k^2 + 4 * sig1Vec(n) * k)^2 + 16 * kappaSq * k^2))/2);
-    Nfrac = Lvec(n) / h;
+    L = (Nfrac + 1/10) * h;
+    Lvec(n) = L;
+    Nfrac = L / h;
     N = floor(Nfrac);
 
     % Calculate alpha (fractional part of Nfrac)
     alf = Nfrac - N;
-%     alf = 0;
     % Can only add/remove one point at a time
     if abs(N - NPrev) > 1
         error('Can only add/remove one grid point at a time')
@@ -394,8 +403,11 @@ for n = 1:lengthSound
 %         
 %         % Plot right system (with right outer boundary)
 %         plot(hLocsRight, [w; 0], 'Linewidth', 2,  'Marker', 'o', 'MarkerSize', 10, 'Color', 'r');
-        
+subplot(211)
+        hold off;
         plot([hLocsLeft, hLocsRight], [0; q; 0], 'Linewidth', 2,  'Marker', 'o', 'MarkerSize', 10, 'Color', 'g');
+        hold on;
+        plot([hLocsLeft, hLocsRight], [uSave(n,1:MvSave(n)+1), uSave(n, end-MwSave(n):end)], 'Linewidth', 2,  'Marker', 'o', 'MarkerSize', 3, 'Color', 'r');
         % Settings
         xlim([0, Lvec(n)])
 %         ylim([-1000, 1000])
@@ -405,7 +417,10 @@ for n = 1:lengthSound
         title("$\alpha = " + num2str(round(alf*100)/100) + "$", 'interpreter', 'latex')
 %         legend(["$u$", "$w$"], 'interpreter', 'latex')
         set(gca, "Fontsize", 16, 'Linewidth', 2)
-        
+        subplot(212)
+        plot([0; q; 0] -  [uSave(n,1:MvSave(n)+1), uSave(n, end-MwSave(n):end)]')
+        alfDiffSave(n) = alfSave(n) - alf;
+%         plot(alfDiffSave(2:n));
         drawnow;
     end
     

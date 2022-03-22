@@ -10,14 +10,25 @@ numFromBoundY = 1;
 
 gridSim = false; 
 lockY = false;
-dispCorr = true;
+dispCorr = false;
 waveSpeed = false;
 
 %% Initialise variables
 fs = 44100;         % Sample rate [Hz]
 k = 1 / fs;         % Time step [s]
+
+NxStart = 15.0;
+NxEnd = 20.0;
+NyStart = 15.0;
+NyEnd = 20.0;
+
+    
 if gridSim
-    lengthSound = 100^2;
+    detail = 50;
+    NxDiff = NxEnd-NxStart;
+    NyDiff = NyEnd-NyStart;
+    lengthSound = NxDiff * detail * NyDiff * detail; % detail x detail per Nx Ny combination
+%     lengthSound = 100^2;
 else
     lengthSound = 1000;   % Length of the simulation
 end
@@ -38,24 +49,19 @@ kappaSqVec = Dvar / (rho * H);
 sig0 = 0;
 sig1 = 0.000;
 
-NxStart = 5.0;
-NxEnd = 6.0;
-NyStart = 5.0;
-NyEnd = 5.0;
-
 % h = 2 * sqrt(k * (sig1 + sqrt(sig1^2 + kappaSqVec(1)))); 
 % hVec = 2 * sqrt(k * (sig1 + sqrt(sig1^2 + kappaSqVec))); 
 h = sqrt(cVec(1)^2 * k^2 + 4 * sig1 * k + sqrt((cVec(1)^2 * k^2 + 4 * sig1 * k)^2 + 16 * kappaSqVec(1) * k^2));
 hVec = sqrt(cVec.^2 * k^2 + 4 * sig1 * k + sqrt((cVec.^2 * k^2 + 4 * sig1 * k).^2 + 16 * kappaSqVec * k^2));
 
-Lx = linspace(NxStart * h, NxEnd * h, lengthSound);
-Ly = linspace(NyStart * h, NyEnd * h, lengthSound);
+if gridSim
+    Lx = 1./linspace(1/(NxStart * h), 1/(NxEnd * h), NxDiff * detail);
+    Ly = 1./linspace(1/(NyStart * h), 1/(NyEnd * h), NyDiff * detail);
+else
+    Lx = 1./linspace(1/(NxStart * h), 1/(NxEnd * h), lengthSound);
+    Ly = 1./linspace(1/(NyStart * h), 1/(NyEnd * h), lengthSound);
 
-NxMax = ceil(Lx./hVec);
-NyMax = ceil(Ly./hVec);
-Nmax = max (NxMax .* NyMax);
-
-
+end
 NxFrac = Lx(1)/h;
 Nx = floor(NxFrac);
 NxPrev = Nx;
@@ -83,24 +89,30 @@ else
     Mwy = numFromBoundY;
 end
 
-modesSave = zeros (lengthSound, Nmax);
-sigmaSave = zeros (lengthSound, Nmax);
-centDeviation = zeros (lengthSound, Nmax);
-expectedModes = zeros (lengthSound, Nmax);
-
 nCounter = 0;
 percentCounter = 0;
 
 if gridSim
-    Lx = repmat(linspace(NxStart*h, (NxEnd - 1/sqrt(lengthSound)) * h, sqrt(lengthSound)), sqrt(lengthSound), 1);
-    Ly = repmat(linspace(NyStart*h, (NyEnd - 1/sqrt(lengthSound)) * h, sqrt(lengthSound))', 1, sqrt(lengthSound));
+    Lx = repmat(linspace(NxStart*h, (NxEnd - 1/(NxDiff * detail)) * h, NxDiff * detail), NyDiff * detail, 1);
+    Ly = repmat(linspace(NyStart*h, (NyEnd - 1/(NyDiff * detail)) * h, NyDiff * detail)', 1, NxDiff * detail);
     Lx = reshape(Lx, lengthSound, 1);
     Ly = reshape(Ly, lengthSound, 1);
     LxIdx = 1;
     LyIdx = 1;
-    maxCentDeviation = zeros(sqrt(lengthSound), sqrt(lengthSound));
+    maxCentDeviation = zeros(NyDiff * detail, NyDiff * detail);
 
 end
+
+% assuming h doesn't change
+NxMax = ceil(Lx./h);
+NyMax = ceil(Ly./h);
+Nmax = max (NxMax .* NyMax);
+modesSave = zeros (lengthSound, Nmax);
+sigmaSave = zeros (lengthSound, Nmax);
+centDeviation = zeros (lengthSound, Nmax);
+centDeviationSquare = zeros (lengthSound, Nmax);
+expectedModes = zeros (lengthSound, Nmax);
+
 % alfXMat = repmat((0:sqrt(lengthSound):lengthSound-1)/lengthSound,sqrt(lengthSound),1);
 % 
 % alfYMat = alfXMat';
@@ -200,49 +212,72 @@ for n = 1:lengthSound
     C = (-1 + sig0 * k) * speye(Ny*Nx) - 2 * sig1 * k * D;
         
     if dispCorr
-        sigDC = 0.01;
-        eps = 1e-15;
-        betaXDC = (1 - alfX) / (alfX + eps);
-        betaYDC = (1 - alfY) / (alfY + eps);
-        JDCX = sparse(zeros (My + Mwy, Mx + Mwx));
-        JDCX(:, Mx) = 	1/h^2;
-        JDCX(:, Mx+1) = -1/h^2;
-        JDCX(My:My+1, Mx:Mx+1) = zeros(2);
+        epsilon = 1e-6;
+        sigDC = 10;
+        if alfX == 0
+            betaX = 0;
+        else
+            betaX = (1-alfX) / (alfX + epsilon);
+        end
+        if alfY == 0
+            betaY = 0;
+        else
+            betaY = (1-alfY) / (alfY + epsilon);
 
-        JDCY = sparse(zeros (My + Mwy, Mx + Mwx));
-        JDCY(My, :) = 1/h^2;
-        JDCY(My+1, :) = -1/h^2;
-        JDCY(My:My+1, Mx:Mx+1) = zeros(2);
-
+        end
+        JDCXEtaSave = sparse (zeros ((My + Mwy) * (Mx + Mwx)));
         
-        etaDCX = sparse(zeros (My + Mwy, Mx + Mwx));
-        etaDCX(:, Mx) = -1;
-        etaDCX(:, Mx+1) = 1;
-        etaDCX(My:My+1, Mx:Mx+1) = zeros(2);
+        for yLoc = 1:My+Mwy
+            JDCX = sparse(zeros (My + Mwy, Mx + Mwx));     
+            etaDCX = sparse(zeros (My + Mwy, Mx + Mwx));
 
-        etaDCY = sparse(zeros (My + Mwy, Mx + Mwx));
-        etaDCY(My, :) = -1;
-        etaDCY(My+1, :) = 1;
-        etaDCY(My:My+1, Mx:Mx+1) = zeros(2);
+            if yLoc ~= My && yLoc ~= My+1
+                JDCX(yLoc, Mx) = 1/h^2;
+                JDCX(yLoc, Mx+1) = -1/h^2;
+                etaDCX(yLoc, Mx) = -1;
+                etaDCX(yLoc, Mx+1) = 1;
+            end
+            JDCX = reshape(JDCX, (My + Mwy) * (Mx + Mwx), 1);
+            etaDCX = reshape(etaDCX, (My + Mwy) * (Mx + Mwx), 1)';
+            JDCXEtaSave = JDCXEtaSave + JDCX * etaDCX;
+        end
         
-        JDCX = reshape(JDCX, (My + Mwy) * (Mx + Mwx), 1);
-        JDCY = reshape(JDCY, (My + Mwy) * (Mx + Mwx), 1);
-        etaDCX = reshape(etaDCX, (My + Mwy) * (Mx + Mwx), 1)';
-        etaDCY = reshape(etaDCY, (My + Mwy) * (Mx + Mwx), 1)';
-            
-        Adispcorr =  -betaXDC * k^2 * (1 + sigDC / k) / 2 * JDCX * etaDCX;% - ...
-%             betaYDC * k^2 * (1 + sigDC / k) / 2 * JDCY * etaDCY;
-        Cdispcorr = betaXDC * k^2 * (1 - sigDC / k) / 2 * JDCX * etaDCX + ...
-%             betaYDC * k^2 * (1 - sigDC / k) / 2 * JDCY * etaDCY;
+        JDCYEtaSave = sparse (zeros ((My + Mwy) * (Mx + Mwx)));
+
+        for xLoc = 1:Mx+Mwx
+            JDCY = sparse(zeros (My + Mwy, Mx + Mwx));     
+            etaDCY = sparse(zeros (My + Mwy, Mx + Mwx));
+
+            if xLoc ~= Mx && xLoc ~= Mx+1
+                JDCY(My, xLoc) = 1/h^2;
+                JDCY(My+1, xLoc) = -1/h^2;
+                etaDCY(My, xLoc) = -1;
+                etaDCY(My+1, xLoc) = 1;
+            end
+            JDCY = reshape(JDCY, (My + Mwy) * (Mx + Mwx), 1);
+            etaDCY = reshape(etaDCY, (My + Mwy) * (Mx + Mwx), 1)';
+            JDCYEtaSave = JDCYEtaSave + JDCY * etaDCY;
+        end
+
+        Adispcorr =  -betaX * k^2 * (1 + sigDC / k) / 2 * JDCXEtaSave - ...
+            betaY * k^2 * (1 + sigDC / k) / 2 * JDCYEtaSave;
+        Cdispcorr = betaX * k^2 * (1 - sigDC / k) / 2 * JDCXEtaSave + ...
+            betaY * k^2 * (1 - sigDC / k) / 2 * JDCYEtaSave;
+
         Amat = Amat + Adispcorr;
         C = C + Cdispcorr;
     end
     numExpectedModes = (Mx+Mwx) * (My+Mwy);
-    [f, sigma, ~] = analyseQ([Amat\B, Amat\C; ...
-              eye(size(B)), zeros(size(B))], k);
+%     [f, sigma, ~] = analyseQ([Amat\B, Amat\C; ...
+%               eye(size(B)), zeros(size(B))], k);
+    f = sort(real(1/(2*pi*k) * acos(1/2 * eig(full(B)))));
+    if numExpectedModes ~= length(f)
+        disp(length(f) - numExpectedModes)
+    end
+    numExpectedModes = min(numExpectedModes, length(f));
     f = f(1:numExpectedModes);
     modesSave(n, 1:numExpectedModes) = f(1:numExpectedModes);
-    sigmaSave(n, 1:numExpectedModes) = sigma(1:numExpectedModes);
+%     sigmaSave(n, 1:numExpectedModes) = sigma(1:numExpectedModes);
     %     subplot(211)
 %     hold off;
 %     plot(f(1:(M+Mw)))
@@ -255,16 +290,37 @@ for n = 1:lengthSound
     betaY = py * pi / Ly(n);
     SxMat = repmat(sin(betaX * h / 2).^2, My+Mwy, 1);
     SyMat = repmat(sin(betaY' * h / 2).^2, 1, Mx+Mwx);
+    
+    SxSquare = sin(betaX * h / 2).^2;
+    SySquare = sin(betaY * h / 2).^2;
     if waveSpeed
         lambda = cVec(n) * k / h;
-        expectedF = 1/(pi*k) * asin(lambda * sqrt((SxMat + SyMat)));
+        expectedModes = 1/(pi*k) * asin(lambda * sqrt((SxMat + SyMat)));
     else
         mu = sqrt(kappaSqVec(n)) * k / h^2;
-        expectedF = 1/(pi*k) * asin(2 * mu * (SxMat + SyMat));
+        expectedModes = 1/(pi*k) * asin(2 * mu * (SxMat + SyMat));
     end
-    expectedF = real(sort(reshape(expectedF, 1, (Mx+Mwx) * (My+Mwy))));
-    expectedModes(n, 1:numExpectedModes) = expectedF;
-    centDeviation(n, 1:numExpectedModes) = 1200 * log2(f./expectedF');
+    expectedModes = real(sort(reshape(expectedModes, 1, (Mx+Mwx) * (My+Mwy))));
+    expectedModesSquare = real(1/(pi*k) * asin(2 * mu * (SxSquare + SySquare)));
+    indexSave = [];
+    for testIdx = 1:length(SxSquare)
+        for testIdx2 = 1:length(expectedModes)
+            if expectedModesSquare(testIdx) == expectedModes(testIdx2)
+                indexSave = [indexSave; testIdx2];
+                indexSaved = true;
+                break;
+            end   
+        end
+        if indexSaved
+            continue;
+        end
+    end
+    expectedF(n, 1:numExpectedModes) = expectedModes(1:numExpectedModes);
+    expectedFSquare(n, 1:length(SxSquare)) = expectedModesSquare;
+    modesSaveSquare(n, 1:length(SxSquare)) = f(indexSave);
+
+    centDeviation(n, 1:numExpectedModes) = 1200 * log2(f./expectedModes');
+    centDeviationSquare(n, 1:length(SxSquare)) = 1200 * log2(f(indexSave)./expectedModes(indexSave)');
     if gridSim
         idx = n - 1 + (n == 1);
         if Lx(n) > Lx(idx)
@@ -274,7 +330,7 @@ for n = 1:lengthSound
             LyIdx = 1;
         end
 
-        maxCentDeviation(LyIdx, LxIdx) = min(1200 * log2(f./expectedF'));
+        maxCentDeviation(LyIdx, LxIdx) = min(1200 * log2(f./expectedModes'));
         LyIdx = LyIdx + 1;
     end
     if drawThings && mod (n,drawSpeed) == 0
@@ -282,7 +338,7 @@ for n = 1:lengthSound
         hold off;
         plot(f)
         hold on;
-        plot(expectedF);
+        plot(expectedModes);
 
         subplot(212)
         plot (centDeviation(n, 1:numExpectedModes));
@@ -295,25 +351,29 @@ for n = 1:lengthSound
     end
     
 end
+%%
+figure
+% disp("plotting One Step Analysis")
+% plotOneStepAnalysis
+% return;
 if gridSim
     surf(maxCentDeviation, 'Linestyle', 'none')
 end
 %%
 figure
+nChangeSave = [nChangeSave; n+1];
 modesSave(modesSave == 0) = nan;
+expectedF(expectedF == 0) = nan;
 for i = 1:length(nChangeSave)-1
     plot(nChangeSave(i):nChangeSave(i+1)-1, modesSave(nChangeSave(i):nChangeSave(i+1)-1, :), 'k')
     hold on;
-%     plot(nChangeSave(i):nChangeSave(i+1)-1, expectedModes(nChangeSave(i):nChangeSave(i+1)-1, :), 'r')
-%     hold on;
+%     plot(nChangeSave(i):nChangeSave(i+1)-1, expectedF(nChangeSave(i):nChangeSave(i+1)-1, :), 'r')
+    hold on;
 
 end
 %%
 figure
-plotOneStepAnalysis
-%%
-% figure
-% plot(centDeviation)
+plot(centDeviation)
 %%
 % for i = 1:sqrt(lengthSound)
 %     plotRange = (i-1) * sqrt(lengthSound) + 1: i * sqrt(lengthSound);

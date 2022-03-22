@@ -29,10 +29,10 @@ kappaSqVec = Dvar / (rho * H);
 sig0 = 0;
 sig1 = 0.000;
 
-NxStart = 3;
-NxEnd = 10;
-NyStart = 2;
-NyEnd = 2;
+NxStart = 4;
+NxEnd = 4;
+NyStart = 4;
+NyEnd = 6;
 
 h = 2 * sqrt(k * (sig1 + sqrt(sig1^2 + kappaSqVec(1)))); 
 hVec = 2 * sqrt(k * (sig1 + sqrt(sig1^2 + kappaSqVec))); 

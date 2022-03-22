@@ -1,6 +1,6 @@
 syms alf Dxx A
-N = 10;
-numFromBound = -1;
+N = 20;
+numFromBound = 1;
 if numFromBound == -1
     M = ceil (0.5 * N);
     Mw = floor (0.5 * N);
@@ -44,7 +44,19 @@ Dxxxx = Dxx * Dxx;
 kappaSq = 1;
 k= 1/44100;
 h = sqrt(2 * sqrt(kappaSq) * k);
-B = 2 * eye(size(Dxx)) - 0.25 * Dxxxx
+B = 2 * eye(size(Dxx)) + Dxx
 Q = [B, -eye(size(Dxx));eye(size(Dxx)), zeros(size(Dxx))]
 answer = eig(Q);
-shouldBeOnes = abs(subs(answer, 0:0.1:1))
+% shouldBeOnes = abs(subs(answer, 0:0.01:1))
+%%
+close all
+for alfSubs = 0:0.01:1
+    eigs = subs(answer, alfSubs);
+    plot(exp(1j*2*pi*(0:0.01:1)))
+    hold on
+    scatter(real(eigs), imag(eigs))
+    hold off;
+    xlim([-1.5, 1.5])
+    ylim([-1.5, 1.5])
+    drawnow;
+end

@@ -1,5 +1,5 @@
 close all;
-clear all;
+% clear all;
 
 drawThings = false;
 energyCalc = true;
@@ -9,7 +9,7 @@ if plotPropagation
 end
 drawSpeed = 10;
 
-dispCorr = true;
+dispCorr = false;
 plotLim = 1e-4;
 numFromBoundX = 1;
 numFromBoundY = 1;
@@ -28,23 +28,39 @@ H = 0.005;
 params = [0.5, 1, 7850, 5e-3, 2e11, 1, 0.005;
           0.5, 1, 7850, 5e-2, 2e11, 1, 0.01;]';
 
-% %% length change
-% params = [0.5, 0.25, 7850, 5e-4, 2e13, 0.5, 0.005;
-%           1, 0.5, 7850, 5e-4, 2e13, 0.5, 0.005;
-%           0.5, 0.25, 7850, 5e-4, 2e13, 0.5, 0.005;]';
+%% length change
+params = [0.5, 0.25, 7850, 5e-4, 2e13, 0.5, 0.005;
+          1, 0.5, 7850, 5e-4, 2e13, 0.5, 0.005;
+          0.5, 0.25, 7850, 5e-4, 2e13, 0.5, 0.005;]';
 %       
 %% length change
-params = [0.5, 0.25, 7850, 5e-3, 2e12, 0.5, 0.005;
-          0.5, 0.5, 7850, 5e-3, 2e12, 0.5, 0.005;
-          0.5, 0.25, 7850, 5e-3, 2e12, 0.5, 0.005;]';
+% params = [0.5, 0.25, 7850, 5e-3, 2e12, 0.5, 0.005;
+%           0.5, 0.5, 7850, 5e-3, 2e12, 0.5, 0.005;
+%           0.5, 0.25, 7850, 5e-3, 2e12, 0.5, 0.005;]';
+
+%% test 
+% 
+% params = [0.9, 0.079, 7850, 5e-3, 2e11, 0, 0.00;
+%           0.079, 0.079, 7850, 5e-3, 2e11, 0, 0.00;]';
+onlyChange = false;
 
 numParams = size(params, 1);
 numChanges = size(params, 2);
-lengthSound = numChanges*2 * fs;
-chunkSize = ceil(lengthSound / (numChanges*2));
-paramVecs = zeros(numParams, lengthSound);
+if onlyChange
+    lengthSound = 2 * fs;
+    chunkSize = lengthSound;
+else
+    lengthSound = numChanges*2 * fs;
+    chunkSize = ceil(lengthSound / (numChanges*2));
 
-paramVecs = params(:, 1) * ones(1, chunkSize);
+end
+% paramVecs = zeros(numParams, lengthSound);
+
+if ~onlyChange
+    paramVecs = params(:, 1) * ones(1, chunkSize);
+else
+    paramVecs = [];
+end
 for i = 1:numChanges-1
     paramMat = [];
     for j = 1:numParams
@@ -53,7 +69,7 @@ for i = 1:numChanges-1
         elseif j == 3
             paramMat = [paramMat; 1./linspace(1/sqrt(params(j, i)), 1/sqrt(params(j, i+1)), chunkSize).^2];
         elseif j == 4
-            paramMat = [paramMat; linspace(nthroot(params(j, i), 4), nthroot(params(j, i+1), 4), chunkSize).^4];
+            paramMat = [paramMat; linspace(params(j, i) , params(j, i+1), chunkSize)];
         elseif j == 5
             paramMat = [paramMat; linspace(sqrt(params(j, i)), sqrt(params(j, i+1)), chunkSize).^2];
         else
@@ -62,11 +78,13 @@ for i = 1:numChanges-1
     end
     paramVecs = [paramVecs, paramMat];
 
-    paramVecs = [paramVecs, params(:, i+1) .* ones(numParams, chunkSize)];
-
+    if ~onlyChange
+        paramVecs = [paramVecs, params(:, i+1) .* ones(numParams, chunkSize)];
+    end
 end
-paramVecs = [paramVecs, params(:, end) .* ones(numParams, chunkSize)];
-      
+if ~onlyChange
+    paramVecs = [paramVecs, params(:, end) .* ones(numParams, chunkSize)];
+end     
 LxVec = paramVecs(1, :);
 LyVec = paramVecs(2, :);
 rhoVec = paramVecs(3, :);
@@ -74,6 +92,7 @@ Hvec = paramVecs(4, :);
 Evec = paramVecs(5, :);
 sig0Vec = paramVecs(6, :);
 sig1Vec = paramVecs(7, :);
+Dparam = Evec .* Hvec.^3 ./ (12 * (1 - 0.3^2)) ;
 
 nu = 0.3;
 Dvar = Evec .* Hvec.^3 / (12 * (1 - nu^2));
@@ -82,9 +101,9 @@ kappaSqVec = Dvar ./ (rhoVec .* Hvec);
 h = 2 * sqrt(k * (sig1Vec(1) + sqrt(sig1Vec(1)^2 + kappaSqVec(1)))); 
 hVec = 2 * sqrt(k * (sig1Vec + sqrt(sig1Vec.^2 + kappaSqVec)));
 
-NxVec = LxVec ./ hVec
-NyVec = LyVec ./ hVec
-
+NxVec = LxVec ./ hVec;
+NyVec = LyVec(1) ./ hVec;
+% LyVec = NyVec .* hVec;
 Nx = floor(LxVec(1)/h);
 NxPrev = Nx;
 
@@ -109,11 +128,15 @@ else
 end
 
 %% Initialise state vectors (one more grid point than the number of intervals)
-
+DCmatForm = false;
 % don't subtract from as there is one point for overlap
 qNext = zeros(Ny * Nx, 1);
 q = zeros(Ny * Nx, 1);
 
+if DCmatForm
+    qNextDC = zeros(Ny * Nx, 1);
+    qDC = zeros(Ny * Nx, 1);
+end
 %% Initial conditions (raised cosine)
 % halfWidth = floor(min(Nx, Ny) / 10);
 halfWidth = 1;
@@ -127,7 +150,9 @@ yOutLoc = 2;
 
 % Set initial velocity to zero
 qPrev = q;
-
+if DCmatForm
+    qPrevDC = qDC;
+end
 out = zeros(lengthSound, 1);
 
 nCounter = 0;
@@ -141,7 +166,7 @@ for n = 1:lengthSound
 %     elseif mod(n, fs/2) == 1
 %         q((xInLoc-1) * Ny + yInLoc) = 1;
 %     end
-    if mod(n, floor(chunkSize / 2)) == 1
+    if mod(n, floor(chunkSize / 2)) == 1 
         q((xInLoc-1) * Ny + yInLoc) = 1/h;
     end
     
@@ -149,8 +174,8 @@ for n = 1:lengthSound
     NxFrac = LxVec(n)/h;
     Nx = floor(NxFrac);
 
+    
     alfX = NxFrac - Nx;
-
     if Nx ~= NxPrev
         if Nx > NxPrev
             
@@ -371,16 +396,20 @@ for n = 1:lengthSound
     D = kron(speye(Nx), Dyy) + kron(Dxx, speye(Ny));
     DD = D * D;
     B = 2 * speye(Ny*Nx) - kappaSqVec(n) * k^2 * DD + 2 * sig1Vec(n) * k * D;
-    Amat = speye(Ny*Nx) * (1 + sig0Vec(n) * k);
+    Amat = (1 + sig0Vec(n) * k);
     C = (-1 + sig0Vec(n) * k) * speye(Ny*Nx) - 2 * sig1Vec(n) * k * D;
     
     %% Update equation
-    qNext = Amat \ (B * q + C * qPrev);
+    qNext = (B * q + C * qPrev) / Amat;
     
     %% Displacement correction
+    BDC = 2 * speye(Ny*Nx) - kappaSqVec(n) * k^2 * DD + 2 * sig1Vec(n) * k * D;
+    AmatDC = speye(Ny*Nx) * (1 + sig0Vec(n) * k);
+    CDC = (-1 + sig0Vec(n) * k) * speye(Ny*Nx) - 2 * sig1Vec(n) * k * D;
+
     if dispCorr
-        epsilon = 0; % Calculation is still defined for epsilon = 0 
-        sigDC = 0.1; % Damping coefficient
+        epsilon = 1e-15; % Calculation is still defined for epsilon = 0 
+        sigDC = 0.0; % Damping coefficient
         
         qNextTmp = reshape(qNext, Ny, Nx);
         qTmp = reshape(q, Ny, Nx);
@@ -408,7 +437,6 @@ for n = 1:lengthSound
         oOPX = (h^2 * (1 + sigDC / k) * (1-alfX)) / (2 * h^2 * (alfX + epsilon) + 2 * k^2 * (1 + sigDC / k) * (1-alfX));
         oOPY = (h^2 * (1 + sigDC / k) * (1-alfY)) / (2 * h^2 * (alfY + epsilon) + 2 * k^2 * (1 + sigDC / k) * (1-alfY));
         
-        % Here, uNext and wNext are the 'intermediate' states of u and w (schemes without connection forces)
         FX1 = (etaNextX1 + rForce * etaPrevX1) * oOPX;
         FX2 = (etaNextX2 + rForce * etaPrevX2) * oOPX;
         FY1 = (etaNextY1 + rForce * etaPrevY1) * oOPY;
@@ -438,27 +466,84 @@ for n = 1:lengthSound
         etaPrevY2 = qPrevTmp(My+1, Mx+1) - qPrevTmp(My, Mx+1); % etaY2
         etaPrevX2 = qPrevTmp(My+1, Mx+1) - qPrevTmp(My+1, Mx); % etaX2
 
-        pMat = [1 + pxPlus + pyPlus, -pxPlus, -pyPlus, 0;
-                -pxPlus, 1 + pxPlus + pyPlus, 0, -pyPlus;
-                -pyPlus, 0, 1 + pxPlus + pyPlus, -pxPlus;
-                0, -pyPlus, -pxPlus, 1 + pxPlus + pyPlus];
-        v2D = [qNextTmp(My, Mx)     + pxMin * etaPrevX1 + pyMin * etaPrevY1;
-               qNextTmp(My, Mx+1)   - pxMin * etaPrevX1 + pyMin * etaPrevY2;
-               qNextTmp(My+1, Mx)   + pxMin * etaPrevX1 - pyMin * etaPrevY1;
-               qNextTmp(My+1, Mx+1) - pxMin * etaPrevX2 - pyMin * etaPrevY2];
-        solut2D = pMat \ v2D;
-        qNextTmp(My, Mx) = solut2D(1);
-        qNextTmp(My, Mx+1) = solut2D(2);
-        qNextTmp(My+1, Mx) = solut2D(3);
-        qNextTmp(My+1, Mx+1) = solut2D(4);
+%         pMat = [1 + pxPlus + pyPlus, -pxPlus, -pyPlus, 0;
+%                 -pxPlus, 1 + pxPlus + pyPlus, 0, -pyPlus;
+%                 -pyPlus, 0, 1 + pxPlus + pyPlus, -pxPlus;
+%                 0, -pyPlus, -pxPlus, 1 + pxPlus + pyPlus];
+%         v2D = [qNextTmp(My, Mx)     + pxMin * etaPrevX1 + pyMin * etaPrevY1;
+%                qNextTmp(My, Mx+1)   - pxMin * etaPrevX1 + pyMin * etaPrevY2;
+%                qNextTmp(My+1, Mx)   + pxMin * etaPrevX1 - pyMin * etaPrevY1;
+%                qNextTmp(My+1, Mx+1) - pxMin * etaPrevX2 - pyMin * etaPrevY2];
+%         solut2D = pMat \ v2D;
+%         qNextTmp(My, Mx) = solut2D(1);
+%         qNextTmp(My, Mx+1) = solut2D(2);
+%         qNextTmp(My+1, Mx) = solut2D(3);
+%         qNextTmp(My+1, Mx+1) = solut2D(4);
         qNext = reshape(qNextTmp, Ny*Nx, 1);
+        
+        if DCmatForm
+            JDCXEtaSave = sparse (zeros ((My + Mwy) * (Mx + Mwx)));
 
+            for yLoc = 1:My+Mwy
+                JDCX = sparse(zeros (My + Mwy, Mx + Mwx));     
+                etaDCX = sparse(zeros (My + Mwy, Mx + Mwx));
+
+                if yLoc ~= My && yLoc ~= My+1
+                    JDCX(yLoc, Mx) = 1/h^2;
+                    JDCX(yLoc, Mx+1) = -1/h^2;
+                    etaDCX(yLoc, Mx) = -1;
+                    etaDCX(yLoc, Mx+1) = 1;
+                end
+                JDCX = reshape(JDCX, (My + Mwy) * (Mx + Mwx), 1);
+                etaDCX = reshape(etaDCX, (My + Mwy) * (Mx + Mwx), 1)';
+                JDCXEtaSave = JDCXEtaSave + JDCX * etaDCX;
+            end
+
+            JDCYEtaSave = sparse (zeros ((My + Mwy) * (Mx + Mwx)));
+
+            for xLoc = 1:Mx+Mwx
+                JDCY = sparse(zeros (My + Mwy, Mx + Mwx));     
+                etaDCY = sparse(zeros (My + Mwy, Mx + Mwx));
+
+                if xLoc ~= Mx && xLoc ~= Mx+1
+                    JDCY(My, xLoc) = 1/h^2;
+                    JDCY(My+1, xLoc) = -1/h^2;
+                    etaDCY(My, xLoc) = -1;
+                    etaDCY(My+1, xLoc) = 1;
+                end
+                JDCY = reshape(JDCY, (My + Mwy) * (Mx + Mwx), 1);
+                etaDCY = reshape(etaDCY, (My + Mwy) * (Mx + Mwx), 1)';
+                JDCYEtaSave = JDCYEtaSave + JDCY * etaDCY;
+            end
+
+            Adispcorr =  -betaX * k^2 * (1 + sigDC / k) / 2 * JDCXEtaSave - ...
+                betaY * k^2 * (1 + sigDC / k) / 2 * JDCYEtaSave;
+            Cdispcorr = betaX * k^2 * (1 - sigDC / k) / 2 * JDCXEtaSave + ...
+                betaY * k^2 * (1 - sigDC / k) / 2 * JDCYEtaSave;
+            AmatDC = AmatDC + Adispcorr;
+            CDC = CDC + Cdispcorr;
+        end
     end
-
-    
-    out(n) = q((xInLoc-1 + 3) * Ny + (yInLoc + 3));
-
-    
+    if DCmatForm
+        qNextDC = AmatDC \ (BDC * qDC + CDC * qPrevDC);
+        outDC(n) = qDC((xInLoc-1 + 3) * Ny + (yInLoc + 3));
+    end
+%     out(n) = q((xInLoc-1 + 3) * Ny + (yInLoc + 3));
+    out(n) = q(1);
+%     if mod(n, 10) == 0
+%         subplot(211)
+%         hold off;
+%         title("alfX = " + num2str(alfX) + " alfY = " + num2str(alfY));
+%         plot(out(1:n))
+%         title("alfX = " + num2str(alfX) + " alfY = " + num2str(alfY));
+% 
+%         hold on;
+%         plot(outDC(1:n))
+%         drawnow;
+%         subplot(212)
+%         plot(out(1:n)-outDC(1:n)')
+%         drawnow;
+%     end
     if drawThings && mod(n, drawSpeed) == 0 && n > drawStart
         reshapedQ = reshape(q, Ny, Nx);
         qWithBoundaries = zeros(Ny + 2, Nx + 2);
@@ -476,9 +561,44 @@ for n = 1:lengthSound
         disp((percentCounter) + "% done")
     end
     
+%     scaling = ones(Ny, Nx);
+%     scaling(:, Mx) = scaling(:, Mx) * 0.5;
+%     scaling(:, Mx+1) = scaling(:, Mx+1) * 0.5;
+%     scaling(My, :) = scaling(My, :) * 0.5;
+%     scaling(My+1, :) = scaling(My+1, :) *  0.5;
+%     scaling = reshape(scaling, Ny * Nx, 1);
+%     kinEnergy(n) = rhoVec(n) * Hvec(n) / 2 * hVec(n)^2 * sum(scaling.*(1/k .* (q-qPrev)).^2);
+% 
+% %         zeroU(2:end-1, 2:end-1) = reshapedU;
+% %         zeroUPrev(2:end-1, 2:end-1) = reshapedUPrev;
+% %         uEn = reshape(zeroU, (Nx+1) * (Ny+1), 1);
+% %         uPrevEn = reshape(zeroUPrev, (Nx+1) * (Ny+1), 1);
+%     potEnergy(n) = Dparam(n) * hVec(n)^2 / 2 * sum((D * q) .* (D * qPrev));
+%     q0(n) = 2 * sig0Vec(n) * rhoVec(n) * Hvec(n) * hVec(n)^2 * sum((1/(2*k) * (qNext - qPrev)).^2);
+%     q1(n) = -2 * sig1Vec(n) * rhoVec(n) * Hvec(n) * hVec(n)^2 * sum(1/(2*k) * (qNext - qPrev)...
+%         .* (1/k * (D * q - D * qPrev)));
+%     idx = n - (1 * (n~=1));
+%     qTot = qTot + k * (q0(idx) + q1(idx));
+
+%     totEnergy(n) = kinEnergy(n) + potEnergy(n);% + qTot;
+
+%     subplot(211)
+%     imagesc(reshape(q, Ny, Nx));
+%     subplot(212)
+% %     hold off;
+% %     plot(kinEnergy(1:n))
+% %     hold on;
+%     plot(totEnergy(1:n) / totEnergy(1) - 1)
+%     drawnow;
     % Update system states
     qPrev = q;
     q = qNext;
+    
+    if DCmatForm
+        qPrevDC = qDC;
+        qDC = qNextDC;
+    end
+
     
 end
 spectrogram (out,512,64,512, 44100, 'yaxis');
