@@ -7,7 +7,7 @@ close all;
 clc;
 
 %% Draw settings
-drawThings = false;
+drawThings = true;
 drawStart = 0;
 drawSpeed = 1;
 plotModalAnalysis = false;
@@ -27,7 +27,7 @@ end
     >2: (Expected behaviour) Selects where to add points (to left system).
 %}
 
-numFromBound = 10;
+numFromBound = 1;
 
 if numFromBound == 0
     error("numFromBound = 0 is undefined")

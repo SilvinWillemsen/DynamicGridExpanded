@@ -1,6 +1,6 @@
 syms alf Dxx A
 N = 20;
-numFromBound = 1;
+numFromBound = -1;
 if numFromBound == -1
     M = ceil (0.5 * N);
     Mw = floor (0.5 * N);
@@ -20,6 +20,8 @@ Dxx = sym(zeros(M+Mw));
 Dxx(1:M, 1:M) = spdiags([eu -2*eu, eu], -1:1, M, M);
 Dxx(M+1:end, M+1:end) = spdiags([eu -2*eu, eu], -1:1, Mw, Mw);
 
+DxxOrig = spdiags([eu -2*eu, eu], -1:1, Mw+M, Mw+M)
+DxxxxOrig = DxxOrig * DxxOrig;
 %% Calculate (quadratic) interpolator and virtual grid points
 ip = [-A, 1, A];
 testMat = sym(zeros(4));
